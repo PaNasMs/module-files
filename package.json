@@ -1,0 +1,43 @@
+{
+  "name": "@ostojaos/module-files",
+  "private": true,
+  "version": "0.2.9",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && vite build",
+    "test": "python3 scripts/check.py"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
+    "@mdi/js": "^7.4.47",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-tabs": "^1.1.21",
+    "@tanstack/react-query": "^5.103.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "clsx": "^2.1.1",
+    "i18next": "^26.4.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-hook-form": "^7.88.0",
+    "react-router-dom": "^7.18.4",
+    "tailwind-merge": "^3.7.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "prettier": "3.6.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "@ostojaos/module-sdk": "https://github.com/OstojaOS/module-sdk/archive/d97da77c6b11746fb10a3e6571a5541830496632.tar.gz"
+  },
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=9.5.0"
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}

@@ -1,0 +1,178 @@
+[
+  {
+    "key": "server_a496a98ff224",
+    "en": "Invalid user",
+    "ru": "Недопустимый пользователь"
+  },
+  {
+    "key": "server_780e2a1754e2",
+    "en": "Symbolic links in the path are not supported",
+    "ru": "Символические ссылки в пути не поддерживаются"
+  },
+  {
+    "key": "server_f20a90af40c0",
+    "en": "Path is outside accessible mounted storage",
+    "ru": "Путь вне доступного подключённого хранилища"
+  },
+  {
+    "key": "server_8492e1905622",
+    "en": "Directory unavailable",
+    "ru": "Каталог недоступен"
+  },
+  {
+    "key": "server_f8cd9a55b15b",
+    "en": "Permission denied to view this folder",
+    "ru": "Нет прав на просмотр этой папки"
+  },
+  {
+    "key": "server_0a4065a33c9f",
+    "en": "Unknown file operation",
+    "ru": "Неизвестная файловая операция"
+  },
+  {
+    "key": "server_7c5b298fc35e",
+    "en": "File operation complete",
+    "ru": "Файловая операция завершена"
+  },
+  {
+    "key": "server_d9e801f1ec38",
+    "en": "Trash",
+    "ru": "Корзина"
+  },
+  {
+    "key": "server_dd8e891fcb0a",
+    "en": "Permission denied to view this folder: ",
+    "ru": "Нет прав на просмотр этой папки: "
+  },
+  {
+    "key": "server_703f3c838ec7",
+    "en": "Already exists",
+    "ru": "Уже существует"
+  },
+  {
+    "key": "server_4117767db49b",
+    "en": "Item does not exist",
+    "ru": "Объект не существует"
+  },
+  {
+    "key": "server_c21149c8e925",
+    "en": "Not a regular file",
+    "ru": "Это не обычный файл"
+  },
+  {
+    "key": "server_fae7ded1aa92",
+    "en": "Too many items; open a subdirectory",
+    "ru": "Слишком много объектов; откройте подкаталог"
+  },
+  {
+    "key": "server_3505538fe9e9",
+    "en": "Destination already exists",
+    "ru": "Назначение уже существует"
+  },
+  {
+    "key": "server_75e4186f4895",
+    "en": "Cannot move a folder into itself",
+    "ru": "Нельзя переместить папку внутрь себя"
+  },
+  {
+    "key": "server_6a13ff4fc1f6",
+    "en": "Permanent deletion",
+    "ru": "Безвозвратное удаление"
+  },
+  {
+    "key": "server_d0a565aacd18",
+    "en": "The operation uses your Linux permissions",
+    "ru": "Операция выполняется с вашими Linux-правами"
+  },
+  {
+    "key": "server_3ac98f278c8c",
+    "en": "System",
+    "ru": "Система"
+  },
+  {
+    "key": "server_b84cba49120c",
+    "en": "Invalid trash folder",
+    "ru": "Недопустимая корзина"
+  },
+  {
+    "key": "server_ccc5138599a3",
+    "en": "This trash belongs to another user",
+    "ru": "Корзина другого пользователя"
+  },
+  {
+    "key": "server_be7d0517004e",
+    "en": "Moved to trash",
+    "ru": "Перемещено в корзину"
+  },
+  {
+    "key": "server_f76b7ba107bc",
+    "en": "Home folder",
+    "ru": "Домашняя папка"
+  },
+  {
+    "key": "server_43e755c4976c",
+    "en": "Too many items in trash",
+    "ru": "Слишком много объектов в корзине"
+  },
+  {
+    "key": "server_d48a9f80726d",
+    "en": "File already exists",
+    "ru": "Файл уже существует"
+  },
+  {
+    "key": "server_cd9176dc45f4",
+    "en": "Incomplete transfer",
+    "ru": "Передача неполная"
+  },
+  {
+    "key": "server_1766dd69ab31",
+    "en": "Permission denied to view this folder: {{v0}}",
+    "ru": "Нет прав на просмотр этой папки: {{v0}}"
+  },
+  {
+    "key": "permissions.server0",
+    "en": "Administrator permissions required"
+  },
+  {
+    "key": "permissions.server1",
+    "en": "Choose a home or data folder; system folders are protected"
+  },
+  {
+    "key": "permissions.server2",
+    "en": "Permissions can be edited only on local Linux filesystems"
+  },
+  {
+    "key": "permissions.server3",
+    "en": "Unknown owner or group"
+  },
+  {
+    "key": "permissions.server4",
+    "en": "Folder permissions changed. Reopen the dialog and try again."
+  },
+  {
+    "key": "permissions.server5",
+    "en": "Folder ownership and permissions updated"
+  },
+  {
+    "key": "permissions.unavailable",
+    "en": "Folder unavailable or path contains a symbolic link"
+  },
+  {
+    "key": "permissions.batchDone",
+    "en": "Ownership and permissions updated",
+    "ru": "Владелец и права доступа обновлены",
+    "uk": "Власника та права доступу оновлено"
+  },
+  {
+    "key": "permissions.regular",
+    "en": "Choose a regular file or folder",
+    "ru": "Выберите обычный файл или папку",
+    "uk": "Виберіть звичайний файл або папку"
+  },
+  {
+    "key": "permissions.setuid",
+    "en": "Setuid files are protected",
+    "ru": "Изменение прав файлов с setuid запрещено",
+    "uk": "Зміну прав файлів із setuid заборонено"
+  }
+]

@@ -1,0 +1,47 @@
+{
+  "id": "files",
+  "title": "Files",
+  "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
+  "version": "0.2.9",
+  "api": 1,
+  "core": ">=0.2.0,<0.3.0",
+  "architecture": "arm64",
+  "signer": "ostojaos-ci",
+  "service": "bin/server",
+  "dependencies": {},
+  "packages": {
+    "python3": "3.11",
+    "python3-pil": "9.0",
+    "util-linux": "2.38",
+    "libc6": "2.34",
+    "libpam0g": "1.4.0"
+  },
+  "actions": [
+    "file.mkdir",
+    "file.rename",
+    "file.copy",
+    "file.move",
+    "file.trash",
+    "file.restore",
+    "file.delete",
+    "file.permissions"
+  ],
+  "queries": [
+    "files"
+  ],
+  "translations": {
+    "en": {
+      "title": "Files",
+      "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails."
+    },
+    "ru": {
+      "title": "Файлы",
+      "description": "Файловый менеджер: дерево устройств и папок, загрузка, перемещение, корзина и миниатюры."
+    },
+    "uk": {
+      "title": "Файли",
+      "description": "Файловий менеджер: дерево пристроїв і папок, завантаження, переміщення, кошик і мініатюри."
+    }
+  },
+  "license": "PolyForm-Noncommercial-1.0.0"
+}
