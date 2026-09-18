@@ -32,7 +32,7 @@ jobs:
           path: dist/*.unsigned.zip
           if-no-files-found: error
   release:
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-24.04-arm
     permissions:
