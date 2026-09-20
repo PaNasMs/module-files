@@ -1,21 +1,54 @@
 # PaNasMs Files module
 
-File manager: device and folder tree, uploads, moves, trash and thumbnails.
+Installable file manager for PaNasMs. Current manifest version: **0.2.11**.
+Requires core `>=0.2.0,<0.3.0`, module API 1 and ARM64 Linux.
 
-Standalone source repository. Requires PaNasMs core `>=0.2.0,<0.3.0`, module API 1.
-Frontend: React / TypeScript. Server: Go with the versioned module SDK.
-Python helpers run through the host management interface where applicable.
+## Features
 
-## Build and release
+- Folder/device sidebar with expandable trees and automatic removable-volume mounting.
+- Local and network-mounted locations, folder navigation and list/tile views.
+- Uploads, drag-and-drop moves, copy, rename and folder creation.
+- Trash, restore and permanent deletion, with confirmation dialogs.
+- File-type icons and lazy image thumbnails in tile view.
+- Administrator permission editing for the current folder or selected entries.
 
-On ARM64 Linux install Node.js 24, Go 1.26+, Python 3, gcc and libpam0g-dev.
-Run `sh scripts/build.sh`. The result is an **unsigned build payload** in dist.
-The registry signs it separately; unsigned payloads cannot be installed directly.
+File operations run under the requesting Linux identity where appropriate;
+administrative ownership/permission changes are validated by the host. Filesystem
+and mount management remain responsibilities of the core storage subsystem.
 
-Update manifest.json and package.json versions, commit and push a matching `vX.Y.Z`
-tag. CI tests and builds the source and publishes an immutable GitHub Release.
-PaNasMs/module-registry periodically imports official releases, signs installable
-archives and publishes them in the catalog. No signing key is available here.
-Never replace a published version; issue a new patch version instead.
+## Development
 
-Original code: PolyForm Noncommercial 1.0.0. See LICENSE and NOTICE.
+The frontend uses React/TypeScript and host-provided UI contracts. The server uses
+Go and the pinned [module SDK](https://github.com/PaNasMs/module-sdk). Python helpers
+are included where the module requires them. Do not bundle another copy of the
+host React/router/query runtime.
+
+Use ARM64 Linux, Node.js 24, Go 1.26 or newer, Python 3, a C compiler and
+`libpam0g-dev`. The release workflow pins Go 1.27.1. From this repository:
+
+```sh
+sh scripts/build.sh
+```
+
+This installs locked npm dependencies, builds the UI, runs PAM-enabled Go tests,
+builds the server, checks Python syntax/translation keys and available Python
+tests, then writes `dist/<id>-<version>-arm64.unsigned.zip`. This is an unsigned
+build payload and cannot be installed directly. The script labels output ARM64;
+build on ARM64 rather than treating it as a cross-compilation command.
+
+## Install and release
+
+Install the signed version from the PaNasMs **Modules** catalog, or upload a signed
+`.panasms` archive from the [registry](https://github.com/PaNasMs/module-registry).
+
+For a new release, update `manifest.json`, `package.json` and the npm lockfile
+consistently, commit, then push the matching `vX.Y.Z` tag. The workflow also builds
+branches/PRs, but only a version tag publishes a source release. Its unsigned
+payload is imported and signed by the registry, which publishes the installable
+archive and updates the catalog. Signing keys are not stored in this repository.
+Publish a new version instead of replacing an existing release.
+
+## Documentation and license
+
+Public documentation is maintained in English. Original code uses
+[PolyForm Noncommercial 1.0.0](LICENSE); see [NOTICE](NOTICE) for third-party scope.
