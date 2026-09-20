@@ -1,5 +1,5 @@
-import { DialogContent, WaitingSurface } from "@ostojaos/ui";
-import { useQueryValue } from "@ostojaos/navigation";
+import { DialogContent, WaitingSurface } from "@panasms/ui";
+import { useQueryValue } from "@panasms/navigation";
 import { useNavigate } from "react-router-dom";
 import { tr, locale } from "./i18n";
 import { FolderPermissions, PermissionsMenuAction } from "./folder-permissions";
@@ -10,8 +10,8 @@ import {
   useVolumeAccess,
   volumeMountParams,
   type Removable,
-} from "@ostojaos/removable";
-import { registerModule } from "@ostojaos/runtime";
+} from "@panasms/removable";
+import { registerModule } from "@panasms/runtime";
 import {
   mdiUsbFlashDrive,
   mdiMicroSd,
@@ -44,10 +44,10 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { managed, OperationButton, type Job } from "@ostojaos/operations";
-import { newID } from "@ostojaos/layout";
-import { waitForJob } from "@ostojaos/completion";
-import { Button, Icon, Notice, bytes } from "@ostojaos/ui";
+import { managed, OperationButton, type Job } from "@panasms/operations";
+import { newID } from "@panasms/layout";
+import { waitForJob } from "@panasms/completion";
+import { Button, Icon, Notice, bytes } from "@panasms/ui";
 type Entry = {
   name: string;
   path: string;
@@ -297,7 +297,7 @@ export function FilesPage() {
                   destination.replace(/\/$/, "") + "/" + file.name,
                 ),
             );
-            xhr.setRequestHeader("X-OstojaOS-Request", "1");
+            xhr.setRequestHeader("X-PaNasMs-Request", "1");
             xhr.upload.onprogress = (e) => {
               if (e.lengthComputable)
                 setProgress(Math.round((e.loaded / e.total) * 100));
@@ -387,10 +387,10 @@ export function FilesPage() {
     setSelection(items.map((item) => item.path));
     setMenu(null);
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("application/x-ostojaos-files", "move");
+    event.dataTransfer.setData("application/x-panasms-files", "move");
   }
   function overFolder(event: DragEvent, destination: string) {
-    if (!event.dataTransfer.types.includes("application/x-ostojaos-files"))
+    if (!event.dataTransfer.types.includes("application/x-panasms-files"))
       return;
     event.preventDefault();
     event.stopPropagation();
@@ -399,7 +399,7 @@ export function FilesPage() {
     setDropTarget(allowed ? destination : "");
   }
   async function dropMove(event: DragEvent, destination: string) {
-    if (!event.dataTransfer.types.includes("application/x-ostojaos-files"))
+    if (!event.dataTransfer.types.includes("application/x-panasms-files"))
       return;
     event.preventDefault();
     event.stopPropagation();

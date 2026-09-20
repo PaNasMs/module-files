@@ -270,7 +270,7 @@ def query(user, target):
         )
         if not os.access(r, os.R_OK | os.X_OK):
             continue
-        trash = Path(r) / (".ostojaos-trash-" + str(os.getuid()))
+        trash = Path(r) / (".panasms-trash-" + str(os.getuid()))
         if (
             trash.is_dir()
             and not trash.is_symlink()
@@ -412,7 +412,7 @@ def execute(action, p, user):
             target.unlink()
     elif action == "file.trash":
         base = next(Path(r) for r in allowed if Path(r) in target.parents)
-        trash = base / (".ostojaos-trash-" + str(os.getuid()))
+        trash = base / (".panasms-trash-" + str(os.getuid()))
         require(not trash.is_symlink(), "Invalid trash folder")
         trash.mkdir(mode=0o700, exist_ok=True)
         require(
@@ -476,7 +476,7 @@ if __name__ == "__main__":
             download(p, sys.stdout.buffer)
         elif mode == "upload":
             require(not p.exists(), "File already exists")
-            fd, tmp = tempfile.mkstemp(prefix=".ostojaos-upload-", dir=p.parent)
+            fd, tmp = tempfile.mkstemp(prefix=".panasms-upload-", dir=p.parent)
             try:
                 with os.fdopen(fd, "wb") as f:
                     count = 0

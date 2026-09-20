@@ -19,7 +19,7 @@ import {
   mdiDisc,
   mdiLinkVariant,
 } from "@mdi/js";
-import { Icon } from "@ostojaos/ui";
+import { Icon } from "@panasms/ui";
 type FileEntry = {
   name: string;
   path: string;

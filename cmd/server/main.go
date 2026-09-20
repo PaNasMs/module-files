@@ -2,7 +2,7 @@ package main
 
 import (
 	"net/http"
-	"github.com/OstojaOS/module-sdk/modulehost"
+	"github.com/PaNasMs/module-sdk/modulehost"
 )
 
 func main() {

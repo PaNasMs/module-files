@@ -1,13 +1,13 @@
-import { DialogContent, WaitingSurface } from "@ostojaos/ui";
+import { DialogContent, WaitingSurface } from "@panasms/ui";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import { mdiFolderKeyOutline, mdiClose } from "@mdi/js";
-import { request, type Identity } from "@ostojaos/client";
-import { managed, type Job } from "@ostojaos/operations";
-import { newID } from "@ostojaos/layout";
-import { waitForJob } from "@ostojaos/completion";
-import { Button, Icon, Notice } from "@ostojaos/ui";
+import { request, type Identity } from "@panasms/client";
+import { managed, type Job } from "@panasms/operations";
+import { newID } from "@panasms/layout";
+import { waitForJob } from "@panasms/completion";
+import { Button, Icon, Notice } from "@panasms/ui";
 import { tr } from "./i18n";
 import "./folder-permissions.css";
 
