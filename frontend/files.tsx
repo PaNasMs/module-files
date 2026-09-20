@@ -1,3 +1,4 @@
+import { DialogContent, WaitingSurface } from "@ostojaos/ui";
 import { useQueryValue } from "@ostojaos/navigation";
 import { useNavigate } from "react-router-dom";
 import { tr, locale } from "./i18n";
@@ -546,7 +547,7 @@ export function FilesPage() {
       ]
     : [];
   return (
-    <>
+    <WaitingSurface busy={progress !== null || !!moveStatus} message={progress !== null ? `${uploadLabel} · ${progress}%` : moveStatus}>
       {access.dialog}
       <div className="page-heading">
         <div>
@@ -1246,7 +1247,7 @@ export function FilesPage() {
       >
         {preview && <Preview entry={preview} />}
       </Dialog.Root>
-    </>
+    </WaitingSurface>
   );
 }
 type FolderTreeProps = {
@@ -1468,11 +1469,13 @@ registerModule({
   },
 });
 function Preview({ entry }: { entry: Entry }) {
+  const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [image, setImage] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
     void (async () => {
       try {
         const ext = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
@@ -1526,12 +1529,12 @@ function Preview({ entry }: { entry: Entry }) {
         if (mime) {
           const f = new FileReader();
           f.onload = () => {
-            if (!controller.signal.aborted) setImage(String(f.result));
+            if (!controller.signal.aborted) { setImage(String(f.result)); setLoading(false); }
           };
           f.readAsDataURL(blob);
-        } else setText(await blob.text());
+        } else { setText(await blob.text()); setLoading(false); }
       } catch (e) {
-        if (!controller.signal.aborted) setError((e as Error).message);
+        if (!controller.signal.aborted) { setError((e as Error).message); setLoading(false); }
       }
     })();
     return () => controller.abort();
@@ -1539,7 +1542,7 @@ function Preview({ entry }: { entry: Entry }) {
   return (
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay" />
-      <Dialog.Content className="settings-dialog">
+      <DialogContent busy={loading} className="settings-dialog">
         <div className="dialog-heading">
           <Dialog.Title>{entry.name}</Dialog.Title>
           <Dialog.Close asChild>
@@ -1560,10 +1563,10 @@ function Preview({ entry }: { entry: Entry }) {
           <img src={image} alt={entry.name} style={{ maxWidth: "100%" }} />
         ) : (
           <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-            {text || tr("loading_b6819e91")}
+            {text}
           </pre>
         )}
-      </Dialog.Content>
+      </DialogContent>
     </Dialog.Portal>
   );
 }

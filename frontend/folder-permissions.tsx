@@ -1,3 +1,4 @@
+import { DialogContent, WaitingSurface } from "@ostojaos/ui";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -159,7 +160,7 @@ export function FolderPermissions({
       )}
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className="settings-dialog folder-permissions-dialog">
+        <DialogContent busy={busy || data.isPending} className="settings-dialog folder-permissions-dialog">
           <div className="folder-permissions-heading">
             <Dialog.Title>{tr("permissions.title")}</Dialog.Title>
             <Dialog.Close asChild>
@@ -334,7 +335,7 @@ export function FolderPermissions({
               </form>
             )
           )}
-        </Dialog.Content>
+        </DialogContent>
       </Dialog.Portal>
     </Dialog.Root>
   );
