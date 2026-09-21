@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
-	"net/http"
-	"os/exec"
 	"github.com/PaNasMs/module-sdk/auth"
 	"github.com/PaNasMs/module-sdk/transfer"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,7 +19,7 @@ var thumbnailSlots = make(chan struct{}, 2)
 
 func filesHandler(allowed map[string]bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id, e := auth.Lookup(r.URL.Query().Get("user"), allowed)
+		id, e := auth.LookupPanel(r.URL.Query().Get("user"), allowed)
 		if e != nil {
 			http.Error(w, "access denied", 403)
 			return
@@ -57,7 +59,9 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 				return
 			}
 			cmd.Stdin = r.Body
+			cmd.Stderr = os.Stderr
 			if e = cmd.Run(); e != nil {
+				log.Printf("upload failed user=%s expected=%d: %v", id.Username, r.ContentLength, e)
 				http.Error(w, "upload failed or file already exists", 409)
 				return
 			}

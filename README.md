@@ -61,3 +61,10 @@ the copy completes. Cross-filesystem moves publish the destination before deleti
 the source. Failed source cleanup retains both copies and a transfer journal for
 review. This does not provide snapshots of files being changed by other clients.
 Run `python3 scripts/check.py` for syntax, locale and transfer unit checks.
+
+## Ordinary-user access
+
+Version 0.2.13 requires core 0.2.3 or newer. It accepts explicitly enabled ordinary
+panel accounts through the SDK's `LookupPanel`. Filesystem operations still execute
+with the selected Linux user's UID, GID and supplementary groups. Permission editing
+remains administrator-only; installing Files does not grant access to other homes.

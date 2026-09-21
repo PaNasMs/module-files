@@ -488,5 +488,6 @@ if __name__ == "__main__":
             finally:
                 Path(tmp).unlink(missing_ok=True)
             print("OK")
-    except Exception:
+    except Exception as error:
+        print(f"File transfer failed: {type(error).__name__}: {error}", file=sys.stderr)
         sys.exit(1)
