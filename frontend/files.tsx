@@ -1,3 +1,4 @@
+import { request, type Identity } from "@panasms/client";
 import { DialogContent, WaitingSurface } from "@panasms/ui";
 import { useQueryValue } from "@panasms/navigation";
 import { useNavigate } from "react-router-dom";
@@ -71,6 +72,7 @@ type Listing = {
   freeBytes?: number;
 };
 export function FilesPage() {
+  const session = useQuery({ queryKey: ["session"], queryFn: () => request<Identity>("session") });
   const access = useVolumeAccess();
   const q = useQueryClient();
   const browserNavigate = useNavigate();
@@ -95,6 +97,8 @@ export function FilesPage() {
   const [permissionTargets, setPermissionTargets] = useState<string[] | null>(
     null,
   );
+  const [focusedPath, setFocusedPath] = useState("");
+  const typeahead = useRef({ text: "", time: 0 });
   const [selection, setSelection] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   const [address, setAddress] = useState("");
@@ -218,13 +222,16 @@ export function FilesPage() {
   }, [editing]);
   useEffect(() => {
     if (!menu) return;
+    const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menuRef.current?.focus();
+    const popup = menuRef.current;
     const close = () => setMenu(null);
     window.addEventListener("click", close);
     window.addEventListener("resize", close);
     return () => {
       window.removeEventListener("click", close);
       window.removeEventListener("resize", close);
+      if (origin?.isConnected && (document.activeElement === document.body || popup?.contains(document.activeElement))) origin.focus();
     };
   }, [menu]);
   function choose(
@@ -752,7 +759,7 @@ export function FilesPage() {
             className="file-toolbar"
             aria-label={tr("file_actions_90dbb13a")}
           >
-            <OperationButton
+            {!!path && !deviceView && <><OperationButton
               icon={mdiFolderPlusOutline}
               label={tr("create_folder_944b559c")}
               actions={["file.mkdir"]}
@@ -784,13 +791,9 @@ export function FilesPage() {
               path={path}
               disabled={deviceView || inTrash || !path}
             />
-            <OperationButton
-              icon={mdiShareVariantOutline}
-              label={tr("nfs_sharing_f6539680")}
-              actions={["nfs.export", "nfs.export-remove"]}
-              initial={{ target: path }}
-              disabled={deviceView || inTrash || !path}
-            />
+            {session.data?.role === "admin" && <Button title={tr('share_folder')} aria-label={tr('share_folder')} disabled={inTrash || !path} onClick={() => browserNavigate('/sharing?folder=' + encodeURIComponent(path))}><Icon path={mdiShareVariantOutline} /></Button>}
+            </>}
+
             <Button
               title={
                 hidden
@@ -976,12 +979,13 @@ export function FilesPage() {
                       <span>{tr("modified_440e2b5d")}</span>
                     </div>
                   )}
-                  {entries.map((e) => (
+                  {entries.map((e, index) => (
                     <div
                       key={e.path}
                       role="option"
                       aria-selected={selection.includes(e.path)}
-                      tabIndex={0}
+                      tabIndex={focusedPath === e.path || (!entries.some(v => v.path === focusedPath) && index === 0) ? 0 : -1}
+                      onFocus={() => setFocusedPath(e.path)}
                       className={`file-entry ${selection.includes(e.path) ? "selected" : ""} ${dropTarget === e.path ? "file-move-target" : ""}`}
                       draggable={
                         !inTrash &&
@@ -1006,6 +1010,32 @@ export function FilesPage() {
                       onClick={(event) => choose(e, event)}
                       onDoubleClick={() => open(e)}
                       onKeyDown={(event) => {
+                        const nodes = Array.from(event.currentTarget.parentElement!.querySelectorAll<HTMLElement>('[role="option"]'));
+                        let nextIndex = -1;
+                        if (["ArrowDown", "ArrowRight"].includes(event.key)) nextIndex = Math.min(entries.length - 1, index + 1);
+                        if (["ArrowUp", "ArrowLeft"].includes(event.key)) nextIndex = Math.max(0, index - 1);
+                        if (event.key === "Home") nextIndex = 0;
+                        if (event.key === "End") nextIndex = entries.length - 1;
+                        if (event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                          const now = Date.now();
+                          typeahead.current = { text: (now - typeahead.current.time < 700 ? typeahead.current.text : "") + event.key.toLocaleLowerCase(), time: now };
+                          nextIndex = entries.findIndex(v => v.name.toLocaleLowerCase().startsWith(typeahead.current.text));
+                        }
+                        if (nextIndex >= 0) {
+                          event.preventDefault(); nodes[nextIndex]?.focus();
+                          if (event.shiftKey) {
+                            const from = entries.findIndex(v => v.path === anchor.current);
+                            const start = from < 0 ? index : from;
+                            if (from < 0) anchor.current = e.path;
+                            setSelection(entries.slice(Math.min(start, nextIndex), Math.max(start, nextIndex) + 1).map(v => v.path));
+                          }
+                        }
+                        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                          event.preventDefault();
+                          if (!selection.includes(e.path)) setSelection([e.path]);
+                          const box = event.currentTarget.getBoundingClientRect();
+                          setMenu({ kind: "item", x: Math.max(8, Math.min(box.left, innerWidth - 260)), y: Math.max(8, Math.min(box.bottom, innerHeight - 390)) });
+                        }
                         if (event.key === "Enter") {
                           event.preventDefault();
                           open(e);
@@ -1086,7 +1116,7 @@ export function FilesPage() {
                       : "",
                   })
                 : path
-                  ? tr("items_cb84f921", { v0: entries.length })
+                  ? data.error ? "—" : data.isPending ? tr("loading_b6819e91", { defaultValue: "…" }) : tr("items_cb84f921", { v0: entries.length })
                   : tr("places_ea24302a", {
                       v0: places.length + removable.length,
                     })}

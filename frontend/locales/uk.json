@@ -135,5 +135,9 @@
   "permissions.selected": "Вибрано: {{v0}}",
   "permissions.batchDone": "Власника та права доступу оновлено",
   "permissions.regular": "Виберіть звичайний файл або папку",
-  "permissions.setuid": "Зміну прав файлів із setuid заборонено"
+  "permissions.setuid": "Зміну прав файлів із setuid заборонено",
+  "share_folder": "Опублікувати теку",
+  "permissions.discardTitle": "Скасувати зміни прав?",
+  "permissions.discardHelp": "Ваші зміни ще не застосовано.",
+  "permissions.discard": "Скасувати зміни"
 }

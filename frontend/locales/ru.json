@@ -135,5 +135,9 @@
   "permissions.selected": "Выбрано: {{v0}}",
   "permissions.batchDone": "Владелец и права доступа обновлены",
   "permissions.regular": "Выберите обычный файл или папку",
-  "permissions.setuid": "Изменение прав файлов с setuid запрещено"
+  "permissions.setuid": "Изменение прав файлов с setuid запрещено",
+  "share_folder": "Опубликовать папку",
+  "permissions.discardTitle": "Отменить изменения прав?",
+  "permissions.discardHelp": "Ваши изменения ещё не применены.",
+  "permissions.discard": "Отменить изменения"
 }

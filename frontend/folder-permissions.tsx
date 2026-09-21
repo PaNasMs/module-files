@@ -1,5 +1,5 @@
 import { DialogContent, WaitingSurface } from "@panasms/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import { mdiFolderKeyOutline, mdiClose } from "@mdi/js";
@@ -74,6 +74,7 @@ export function FolderPermissions({
   const [mode, setMode] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [discard, setDiscard] = useState(false);
   const data = useQuery({
     queryKey: ["folder-permissions", paths],
     queryFn: () =>
@@ -86,14 +87,18 @@ export function FolderPermissions({
     retry: false,
     refetchOnWindowFocus: false,
   });
+  const initialized = useRef("");
   useEffect(() => {
-    if (data.data) {
+    if (!open) initialized.current = "";
+    if (data.data && initialized.current !== JSON.stringify(paths)) {
+      initialized.current = JSON.stringify(paths);
       setOwner("");
       setGroup("");
       setMask(0);
       setMode(parseInt(data.data.items[0].mode, 8));
     }
-  }, [data.data]);
+  }, [data.data, open, JSON.stringify(paths)]);
+  const dirty = !!owner || !!group || !!data.data?.items.some(item => (parseInt(item.mode, 8) & mask) !== (mode & mask));
   async function save() {
     if (!data.data) return;
     setBusy(true);
@@ -138,10 +143,12 @@ export function FolderPermissions({
   }
   if (!admin) return null;
   return (
+    <>
     <Dialog.Root
       open={open}
       onOpenChange={(next) => {
         if (!busy) {
+          if (!next && dirty) { setDiscard(true); return; }
           setOpen(next);
           setError("");
         }
@@ -233,7 +240,7 @@ export function FolderPermissions({
                       ))}
                     </select>
                   </label>
-                  <table>
+                  <div className="table-wrap"><table>
                     <thead>
                       <tr>
                         <th></th>
@@ -290,7 +297,7 @@ export function FolderPermissions({
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                   {data.data.items.some((i) => i.directory) && (
                     <label className="folder-permissions-check">
                       <input
@@ -323,7 +330,7 @@ export function FolderPermissions({
                   )}
                 </fieldset>
                 <div className="actions">
-                  <Button disabled={busy}>
+                  <Button disabled={busy || !dirty}>
                     {tr(busy ? "permissions.saving" : "permissions.save")}
                   </Button>
                   <Dialog.Close asChild>
@@ -338,5 +345,19 @@ export function FolderPermissions({
         </DialogContent>
       </Dialog.Portal>
     </Dialog.Root>
+    <Dialog.Root open={discard} onOpenChange={setDiscard}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="dialog-overlay" />
+        <DialogContent className="dialog compact-confirm">
+          <Dialog.Title>{tr("permissions.discardTitle")}</Dialog.Title>
+          <Dialog.Description>{tr("permissions.discardHelp")}</Dialog.Description>
+          <div className="dialog-actions">
+            <Button onClick={() => setDiscard(false)}>{tr("permissions.cancel")}</Button>
+            <Button onClick={() => { setDiscard(false); setOpen(false); }}>{tr("permissions.discard")}</Button>
+          </div>
+        </DialogContent>
+      </Dialog.Portal>
+    </Dialog.Root>
+    </>
   );
 }

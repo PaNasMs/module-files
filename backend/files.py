@@ -253,6 +253,9 @@ def query(user, target):
     }
     drop(user)
     names = mount_names()
+    for mount in mounts:
+        if mount.get("fstype") in ("nfs", "nfs4", "cifs", "smb3"):
+            names[mount["target"]] = mount.get("source", "").rstrip("/").rsplit("/", 1)[-1] or Path(mount["target"]).name
     home = identity(user).pw_dir
     places = []
     trash_roots = []

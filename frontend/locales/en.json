@@ -135,5 +135,9 @@
   "permissions.selected": "Selected: {{v0}}",
   "permissions.batchDone": "Ownership and permissions updated",
   "permissions.regular": "Choose a regular file or folder",
-  "permissions.setuid": "Setuid files are protected"
+  "permissions.setuid": "Setuid files are protected",
+  "share_folder": "Share this folder",
+  "permissions.discardTitle": "Discard permission changes?",
+  "permissions.discardHelp": "Your changes have not been applied.",
+  "permissions.discard": "Discard"
 }
