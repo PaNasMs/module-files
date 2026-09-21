@@ -1,3 +1,4 @@
+import transfer
 import pwd
 import grp
 from contextlib import contextmanager, ExitStack
@@ -421,7 +422,7 @@ def execute(action, p, user):
         container = Path(tempfile.mkdtemp(prefix=str(time.time_ns()) + "-", dir=trash))
         destination = container / target.name
         try:
-            shutil.move(str(target), destination)
+            transfer.transfer(target, destination, move=True)
         except Exception:
             if not any(container.iterdir()):
                 container.rmdir()
@@ -433,13 +434,7 @@ def execute(action, p, user):
         }
     else:
         destination = path(p["destination"], allowed)
-        if action == "file.copy":
-            if target.is_dir():
-                shutil.copytree(target, destination, symlinks=True)
-            else:
-                shutil.copy2(target, destination)
-        else:
-            shutil.move(str(target), destination)
+        transfer.transfer(target, destination, move=action != 'file.copy')
     return {"message": "File operation complete"}
 
 

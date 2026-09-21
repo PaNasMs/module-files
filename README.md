@@ -52,3 +52,12 @@ Publish a new version instead of replacing an existing release.
 
 Public documentation is maintained in English. Original code uses
 [PolyForm Noncommercial 1.0.0](LICENSE); see [NOTICE](NOTICE) for third-party scope.
+
+## Interrupted transfers
+
+Version 0.2.12 requires core 0.2.2. Copies use a sibling staging directory and
+cooperative cancellation checkpoints; the destination becomes visible only after
+the copy completes. Cross-filesystem moves publish the destination before deleting
+the source. Failed source cleanup retains both copies and a transfer journal for
+review. This does not provide snapshots of files being changed by other clients.
+Run `python3 scripts/check.py` for syntax, locale and transfer unit checks.
