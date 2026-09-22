@@ -139,5 +139,11 @@
   "share_folder": "Share this folder",
   "permissions.discardTitle": "Discard permission changes?",
   "permissions.discardHelp": "Your changes have not been applied.",
-  "permissions.discard": "Discard"
+  "permissions.discard": "Discard",
+  "delete.title": "Delete",
+  "delete.cancel": "Cancel",
+  "delete.question": "Delete selected items ({{count}})?",
+  "delete.progress": "{{current}}/{{count}} · {{name}}",
+  "upload.completed": "Uploaded {{completed}} files to {{destination}}.",
+  "upload.failed": "Uploaded {{completed}} of {{count}} files. See Tasks for details."
 }

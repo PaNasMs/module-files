@@ -139,5 +139,11 @@
   "share_folder": "Опубликовать папку",
   "permissions.discardTitle": "Отменить изменения прав?",
   "permissions.discardHelp": "Ваши изменения ещё не применены.",
-  "permissions.discard": "Отменить изменения"
+  "permissions.discard": "Отменить изменения",
+  "delete.title": "Удалить",
+  "delete.cancel": "Отмена",
+  "delete.question": "Удалить выбранные объекты ({{count}})?",
+  "delete.progress": "{{current}}/{{count}} · {{name}}",
+  "upload.completed": "Загружено файлов: {{completed}} → {{destination}}.",
+  "upload.failed": "Загружено {{completed}} из {{count}} файлов. Подробности в задачах."
 }

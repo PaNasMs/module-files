@@ -1,14 +1,14 @@
 # PaNasMs Files module
 
-Installable file manager for PaNasMs. Current manifest version: **0.2.15**.
+Installable file manager for PaNasMs. Current manifest version: **0.2.16**.
 Requires core `>=0.2.5,<0.3.0`, module API 1 and ARM64 Linux.
 
 ## Features
 
 - Folder/device sidebar with expandable trees and automatic removable-volume mounting.
 - Local and network-mounted locations, folder navigation and list/tile views.
-- Uploads, drag-and-drop moves, copy, rename and folder creation.
-- Trash, restore and permanent deletion, with confirmation dialogs.
+- Background upload queue with progress/cancellation in the shell task menu, plus drag-and-drop moves, copy, rename and folder creation.
+- Trash, restore and permanent deletion, including mixed multi-selection of files and folders with one confirmation and per-item failures.
 - File-type icons and lazy image thumbnails in tile view.
 - Administrator permission editing for the current folder or selected entries.
 
@@ -92,3 +92,23 @@ only in a disposable test environment. They create temporary fixtures and do not
 change existing user accounts. No live filesystem snapshot is provided: pause
 external writers before moving actively edited data between filesystems. Power-loss
 and physical media-removal qualification remain separate hardware acceptance work.
+
+## Browser upload lifecycle
+
+Files 0.2.16 publishes session-local transfer snapshots in the host QueryClient
+under `['file-uploads']`. The shell displays these in Tasks and in the top bar.
+Each snapshot includes a stable ID, destination, current filename, file/byte
+counters, status, errors and a cancel callback. This in-memory contract must not
+be persisted or transmitted; File objects stay exclusively in the queue.
+
+Uploads are independent of the Files page and continue across SPA navigation.
+They are sequential, never overwrite an existing destination, and only report a
+file complete after the server acknowledges it. Individual failures do not block
+remaining files. Cancelling skips the rest of that batch. Clearing the session
+cache aborts active/queued transfers to prevent continuation under another user.
+Reloading/closing the browser tab interrupts local-file transfers; a browser
+confirmation guards accidental reloads. Resumable uploads are not implemented.
+
+Run `npm test` for filesystem and queue tests. The queue suite covers route-free
+execution, destination preservation, progress, partial failures, cancellation
+and session changes.

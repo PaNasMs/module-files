@@ -139,5 +139,11 @@
   "share_folder": "Опублікувати теку",
   "permissions.discardTitle": "Скасувати зміни прав?",
   "permissions.discardHelp": "Ваші зміни ще не застосовано.",
-  "permissions.discard": "Скасувати зміни"
+  "permissions.discard": "Скасувати зміни",
+  "delete.title": "Видалити",
+  "delete.cancel": "Скасувати",
+  "delete.question": "Видалити вибрані об’єкти ({{count}})?",
+  "delete.progress": "{{current}}/{{count}} · {{name}}",
+  "upload.completed": "Завантажено файлів: {{completed}} → {{destination}}.",
+  "upload.failed": "Завантажено {{completed}} із {{count}} файлів. Подробиці в завданнях."
 }

@@ -1,3 +1,5 @@
+import { enqueueUpload } from "./uploads";
+import { DeleteItems } from "./delete-items";
 import { request, type Identity } from "@panasms/client";
 import { DialogContent, WaitingSurface } from "@panasms/ui";
 import { useQueryValue } from "@panasms/navigation";
@@ -77,8 +79,7 @@ export function FilesPage() {
   const q = useQueryClient();
   const browserNavigate = useNavigate();
   const [path, setPath] = useQueryValue("path");
-  const [progress, setProgress] = useState<number | null>(null);
-  const [uploadLabel, setUploadLabel] = useState("");
+  const [deleting, setDeleting] = useState<{ items: Entry[]; inTrash: boolean } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const [sort, setSort] = useQueryValue("sort", "name", [
@@ -112,7 +113,6 @@ export function FilesPage() {
   const dragged = useRef<Entry[]>([]);
   const [dropTarget, setDropTarget] = useState("");
   const [moveStatus, setMoveStatus] = useState("");
-  const uploading = useRef(false);
   const dragDepth = useRef(0);
   const uploadInput = useRef<HTMLInputElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
@@ -224,6 +224,11 @@ export function FilesPage() {
     if (!menu) return;
     const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     menuRef.current?.focus();
+    if (menuRef.current) {
+      const box = menuRef.current.getBoundingClientRect();
+      menuRef.current.style.left = `${Math.max(8, Math.min(menu.x, innerWidth - box.width - 8))}px`;
+      menuRef.current.style.top = `${Math.max(8, Math.min(menu.y, innerHeight - box.height - 8))}px`;
+    }
     const popup = menuRef.current;
     const close = () => setMenu(null);
     window.addEventListener("click", close);
@@ -268,7 +273,6 @@ export function FilesPage() {
     !inTrash &&
     !data.error &&
     !data.isPending &&
-    !uploading.current &&
     !moveLock.current;
   useEffect(() => {
     const prevent = (e: globalThis.DragEvent) => {
@@ -281,61 +285,8 @@ export function FilesPage() {
       window.removeEventListener("drop", prevent);
     };
   }, []);
-  async function upload(files: File[]) {
-    if (!canUpload || !files.length) return;
-    const destination = path;
-    uploading.current = true;
-    setError("");
-    setProgress(0);
-    const failures: string[] = [];
-    try {
-      for (const [index, file] of files.entries()) {
-        setUploadLabel(
-          `${index + 1}/${files.length} · ${file.name} → ${destination}`,
-        );
-        setProgress(0);
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open(
-              "PUT",
-              "/api/v1/files/content?target=" +
-                encodeURIComponent(
-                  destination.replace(/\/$/, "") + "/" + file.name,
-                ),
-            );
-            xhr.setRequestHeader("X-PaNasMs-Request", "1");
-            xhr.upload.onprogress = (e) => {
-              if (e.lengthComputable)
-                setProgress(Math.round((e.loaded / e.total) * 100));
-            };
-            xhr.onload = () =>
-              xhr.status === 204
-                ? resolve()
-                : reject(
-                    Error(
-                      tr(
-                        "check_permissions_and_ensure_the_file_name_is_not__5eb4d1e2",
-                      ),
-                    ),
-                  );
-            xhr.onerror = () =>
-              reject(Error(tr("transfer_interrupted_74125ab8")));
-            xhr.onabort = () =>
-              reject(Error(tr("transfer_cancelled_40cfcf6a")));
-            xhr.send(file);
-          });
-        } catch (e) {
-          failures.push(`${file.name}: ${(e as Error).message}`);
-        }
-      }
-    } finally {
-      uploading.current = false;
-      setProgress(null);
-      setUploadLabel("");
-      setError(failures.join("; "));
-      void q.invalidateQueries({ queryKey: ["files"] });
-    }
+  function upload(files: File[]) {
+    if (canUpload) enqueueUpload(q, files, path);
   }
   function dropFiles(e: DragEvent<HTMLDivElement>) {
     if (!e.dataTransfer.types.includes("Files")) return;
@@ -345,9 +296,7 @@ export function FilesPage() {
     setDragging(false);
     if (!canUpload) {
       setError(
-        uploading.current
-          ? tr("wait_for_the_current_upload_to_finish_8b92a1d9")
-          : tr("open_an_accessible_folder_to_upload_files_b4cfcaa0"),
+        tr("open_an_accessible_folder_to_upload_files_b4cfcaa0"),
       );
       return;
     }
@@ -368,8 +317,7 @@ export function FilesPage() {
       !!destination &&
       !inTrash &&
       !moveLock.current &&
-      !uploading.current &&
-      dragged.current.length > 0 &&
+        dragged.current.length > 0 &&
       dragged.current.every(
         (item) =>
           !item.link &&
@@ -384,7 +332,6 @@ export function FilesPage() {
     if (
       inTrash ||
       moveLock.current ||
-      uploading.current ||
       items.some((item) => item.link)
     ) {
       event.preventDefault();
@@ -525,19 +472,12 @@ export function FilesPage() {
         action("file.rename", tr("rename_715e8f0c"), mdiPencilOutline)}
       {action("file.copy", tr("copy_to_40d0eeb3"), mdiContentCopy)}
       {!inTrash && action("file.move", tr("move_to_44eb7965"), mdiContentCut)}
-      {inTrash
-        ? action("file.restore", tr("restore_to_f1fd2c89"), mdiRestore)
-        : action(
-            "file.trash",
-            tr("move_to_trash_f8b39dea"),
-            mdiTrashCanOutline,
-          )}
-      {inTrash &&
-        action(
-          "file.delete",
-          tr("delete_permanently_34fd08c7"),
-          mdiDeleteOutline,
-        )}
+      {inTrash && action("file.restore", tr("restore_to_f1fd2c89"), mdiRestore)}
+      <Button title={tr("delete.title")} aria-label={tr("delete.title")}
+        disabled={!selected.length || selected.some(e => e.link)}
+        onClick={() => { setDeleting({ items: [...selected], inTrash }); setMenu(null); }}>
+        <Icon path={inTrash ? mdiDeleteOutline : mdiTrashCanOutline} />
+      </Button>
     </>
   );
   const crumbPaths = root
@@ -554,7 +494,8 @@ export function FilesPage() {
       ]
     : [];
   return (
-    <WaitingSurface busy={progress !== null || !!moveStatus} message={progress !== null ? `${uploadLabel} · ${progress}%` : moveStatus}>
+    <WaitingSurface busy={!!moveStatus} message={moveStatus}>
+      {deleting && <DeleteItems {...deleting} onClose={() => setDeleting(null)} onRemoved={paths => setSelection(old => old.filter(p => !paths.includes(p)))} />}
       {access.dialog}
       <div className="page-heading">
         <div>
@@ -834,20 +775,6 @@ export function FilesPage() {
             </select>
           </div>
           {moveStatus && <Notice>{moveStatus}</Notice>}
-          {progress !== null && (
-            <Notice>
-              <span className="file-upload-label">
-                {tr("upload_03a9c8fb") + " "}
-                {uploadLabel}
-              </span>
-              <progress
-                className="file-upload-progress"
-                value={progress}
-                max={100}
-              />
-              {progress}%
-            </Notice>
-          )}
           {error && <Notice error>{error}</Notice>}
           {data.error && <Notice error>{data.error.message}</Notice>}
           {locations.error && !data.data && (
@@ -900,9 +827,7 @@ export function FilesPage() {
                 <strong>
                   {canUpload
                     ? tr("drop_files_to_upload_993a0092")
-                    : uploading.current
-                      ? tr("wait_for_the_upload_to_finish_239ff75c")
-                      : tr("open_a_folder_first_4327ac8a")}
+                    : tr("open_a_folder_first_4327ac8a")}
                 </strong>
                 {canUpload && <span>{path}</span>}
               </div>
@@ -990,8 +915,7 @@ export function FilesPage() {
                       draggable={
                         !inTrash &&
                         !e.link &&
-                        !moveLock.current &&
-                        !uploading.current
+                        !moveLock.current
                       }
                       onDragStart={(event) => startMove(event, e)}
                       onDragEnd={() => {
