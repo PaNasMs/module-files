@@ -145,5 +145,17 @@
   "delete.question": "Удалить выбранные объекты ({{count}})?",
   "delete.progress": "{{current}}/{{count}} · {{name}}",
   "upload.completed": "Загружено файлов: {{completed}} → {{destination}}.",
-  "upload.failed": "Загружено {{completed}} из {{count}} файлов. Подробности в задачах."
+  "upload.failed": "Загружено {{completed}} из {{count}} файлов. Подробности в задачах.",
+  "task.conflictNotice": "Объект {{name}} уже существует. Выберите действие в задачах.",
+  "task.replaceUnavailable": "Этот объект нельзя заменить. Переименуйте или пропустите его.",
+  "task.invalidName": "Введите корректное имя файла или папки.",
+  "task.reconnecting": "Связь прервана. Ожидаем подтверждения результата от сервера.",
+  "task.unknownResult": "Результат сервера недоступен. Проверьте историю задач перед повтором.",
+  "task.stopping": "Остановка: текущая операция завершится, если безопасная отмена недоступна.",
+  "task.failed": "Выполнено {{completed}}/{{count}}, пропущено {{skipped}}. Ошибки — в задачах.",
+  "task.completed": "Выполнено {{completed}}/{{count}}, пропущено {{skipped}}.",
+  "task.chooseDestination": "Выберите папку назначения для выбранных объектов: {{count}}.",
+  "task.noDestination": "Выберите папку в дереве.",
+  "task.copy": "Копировать",
+  "task.move": "Переместить"
 }

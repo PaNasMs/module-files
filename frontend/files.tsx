@@ -1,7 +1,7 @@
-import { enqueueUpload } from "./uploads";
+import { enqueueUpload, enqueueFiles } from "./uploads";
 import { DeleteItems } from "./delete-items";
 import { request, type Identity } from "@panasms/client";
-import { DialogContent, WaitingSurface } from "@panasms/ui";
+import { DialogContent } from "@panasms/ui";
 import { useQueryValue } from "@panasms/navigation";
 import { useNavigate } from "react-router-dom";
 import { tr, locale } from "./i18n";
@@ -47,9 +47,7 @@ import {
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { managed, OperationButton, type Job } from "@panasms/operations";
-import { newID } from "@panasms/layout";
-import { waitForJob } from "@panasms/completion";
+import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
 type Entry = {
   name: string;
@@ -80,6 +78,8 @@ export function FilesPage() {
   const browserNavigate = useNavigate();
   const [path, setPath] = useQueryValue("path");
   const [deleting, setDeleting] = useState<{ items: Entry[]; inTrash: boolean } | null>(null);
+  const [transferDialog, setTransferDialog] = useState<{ kind: "copy" | "move"; items: Entry[] } | null>(null);
+  const [destination, setDestination] = useState("");
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const [sort, setSort] = useQueryValue("sort", "name", [
@@ -109,10 +109,8 @@ export function FilesPage() {
     kind: "folder" | "item";
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const moveLock = useRef(false);
   const dragged = useRef<Entry[]>([]);
   const [dropTarget, setDropTarget] = useState("");
-  const [moveStatus, setMoveStatus] = useState("");
   const dragDepth = useRef(0);
   const uploadInput = useRef<HTMLInputElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
@@ -272,8 +270,7 @@ export function FilesPage() {
     !deviceView &&
     !inTrash &&
     !data.error &&
-    !data.isPending &&
-    !moveLock.current;
+    !data.isPending;
   useEffect(() => {
     const prevent = (e: globalThis.DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
@@ -316,7 +313,6 @@ export function FilesPage() {
     return (
       !!destination &&
       !inTrash &&
-      !moveLock.current &&
         dragged.current.length > 0 &&
       dragged.current.every(
         (item) =>
@@ -331,7 +327,6 @@ export function FilesPage() {
     const items = selection.includes(entry.path) ? selected : [entry];
     if (
       inTrash ||
-      moveLock.current ||
       items.some((item) => item.link)
     ) {
       event.preventDefault();
@@ -361,62 +356,10 @@ export function FilesPage() {
     if (!canMoveTo(destination)) return;
     const items = [...dragged.current];
     dragged.current = [];
-    moveLock.current = true;
-    setError("");
-    let completed = 0;
-    try {
-      for (const item of items) {
-        setMoveStatus(
-          tr("moving_7af17ce3", {
-            v0: completed + 1,
-            v1: items.length,
-            v2: item.name,
-          }),
-        );
-        const params = {
-          target: item.path,
-          destination: destination.replace(/\/$/, "") + "/" + item.name,
-        };
-        const plan = await managed<{
-          fingerprint: string;
-          confirmation: string;
-        }>("plan", {
-          action: "file.move",
-          params,
-        });
-        const job = await managed<{
-          id: string;
-        }>("run", {
-          id: newID(),
-          action: "file.move",
-          params,
-          fingerprint: plan.fingerprint,
-          confirmation: plan.confirmation,
-        });
-        await waitForJob(async () => {
-          const jobs = await managed<Job[]>("jobs");
-          q.setQueryData(["jobs"], jobs);
-          return jobs.find((j) => j.id === job.id);
-        });
-        completed++;
-      }
-    } catch (e) {
-      setError(
-        tr("moved_of_cf4c7ae0", {
-          v0: completed,
-          v1: items.length,
-          v2: items[completed]?.name ?? "",
-          v3: (e as Error).message,
-        }),
-      );
-    } finally {
-      moveLock.current = false;
-      setMoveStatus("");
-      setSelection([]);
-      void q.invalidateQueries({ queryKey: ["files"] });
-      void q.invalidateQueries({ queryKey: ["jobs"] });
-    }
+    enqueueFiles(q, "move", items, destination);
+    setSelection([]);
   }
+
   const folderDrop = (destination: string) => ({
     onDragOver: (event: DragEvent) => overFolder(event, destination),
     onDragLeave: () => setDropTarget(""),
@@ -470,8 +413,12 @@ export function FilesPage() {
       )}
       {!inTrash &&
         action("file.rename", tr("rename_715e8f0c"), mdiPencilOutline)}
-      {action("file.copy", tr("copy_to_40d0eeb3"), mdiContentCopy)}
-      {!inTrash && action("file.move", tr("move_to_44eb7965"), mdiContentCut)}
+      {(["copy", "move"] as const).filter(kind => kind !== "move" || !inTrash).map(kind => (
+        <Button key={kind} title={tr(kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965")} aria-label={tr(kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965")}
+          disabled={!selected.length || selected.some(e => e.link)} onClick={() => {
+            setTransferDialog({ kind, items: [...selected] }); setDestination(""); setMenu(null);
+          }}><Icon path={kind === "copy" ? mdiContentCopy : mdiContentCut} /></Button>
+      ))}
       {inTrash && action("file.restore", tr("restore_to_f1fd2c89"), mdiRestore)}
       <Button title={tr("delete.title")} aria-label={tr("delete.title")}
         disabled={!selected.length || selected.some(e => e.link)}
@@ -494,8 +441,27 @@ export function FilesPage() {
       ]
     : [];
   return (
-    <WaitingSurface busy={!!moveStatus} message={moveStatus}>
+    <>
       {deleting && <DeleteItems {...deleting} onClose={() => setDeleting(null)} onRemoved={paths => setSelection(old => old.filter(p => !paths.includes(p)))} />}
+      {transferDialog && <Dialog.Root open onOpenChange={open => { if (!open) setTransferDialog(null); }}>
+        <Dialog.Portal><Dialog.Overlay className="dialog-overlay" />
+          <DialogContent className="dialog file-destination-dialog">
+            <Dialog.Title>{tr(transferDialog.kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965")}</Dialog.Title>
+            <Dialog.Description>{tr("task.chooseDestination", { count: transferDialog.items.length })}</Dialog.Description>
+            <ul className="file-destination-tree">{allPlaces.filter(place => place.kind !== "trash").map(place => <FolderTree
+              key={place.path} folder={place.path} label={place.name} current={destination} hidden={hidden}
+              navigate={setDestination} dropTarget="" folderDrop={() => ({ onDragOver: () => {}, onDragLeave: () => {}, onDrop: () => {} })}
+            />)}</ul>
+            <p className="file-destination-path">{destination || tr("task.noDestination")}</p>
+            <div className="actions">
+              <Button className="primary" disabled={!destination || transferDialog.items.some(item => destination === item.path || destination.startsWith(item.path + "/") || destination === item.path.slice(0, item.path.lastIndexOf("/")) && transferDialog.kind === "move")}
+                onClick={() => { enqueueFiles(q, transferDialog.kind, transferDialog.items, destination); setTransferDialog(null); setSelection([]); }}>
+                {tr(transferDialog.kind === "copy" ? "task.copy" : "task.move")}
+              </Button><Button onClick={() => setTransferDialog(null)}>{tr("delete.cancel")}</Button>
+            </div>
+          </DialogContent>
+        </Dialog.Portal>
+      </Dialog.Root>}
       {access.dialog}
       <div className="page-heading">
         <div>
@@ -774,7 +740,6 @@ export function FilesPage() {
               <option value="modified">{tr("by_date_9fb930e4")}</option>
             </select>
           </div>
-          {moveStatus && <Notice>{moveStatus}</Notice>}
           {error && <Notice error>{error}</Notice>}
           {data.error && <Notice error>{data.error.message}</Notice>}
           {locations.error && !data.data && (
@@ -914,8 +879,7 @@ export function FilesPage() {
                       className={`file-entry ${selection.includes(e.path) ? "selected" : ""} ${dropTarget === e.path ? "file-move-target" : ""}`}
                       draggable={
                         !inTrash &&
-                        !e.link &&
-                        !moveLock.current
+                        !e.link
                       }
                       onDragStart={(event) => startMove(event, e)}
                       onDragEnd={() => {
@@ -1201,7 +1165,7 @@ export function FilesPage() {
       >
         {preview && <Preview entry={preview} />}
       </Dialog.Root>
-    </WaitingSurface>
+    </>
   );
 }
 type FolderTreeProps = {

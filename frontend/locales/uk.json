@@ -145,5 +145,17 @@
   "delete.question": "Видалити вибрані об’єкти ({{count}})?",
   "delete.progress": "{{current}}/{{count}} · {{name}}",
   "upload.completed": "Завантажено файлів: {{completed}} → {{destination}}.",
-  "upload.failed": "Завантажено {{completed}} із {{count}} файлів. Подробиці в завданнях."
+  "upload.failed": "Завантажено {{completed}} із {{count}} файлів. Подробиці в завданнях.",
+  "task.conflictNotice": "Об’єкт {{name}} вже існує. Виберіть дію в завданнях.",
+  "task.replaceUnavailable": "Цей об’єкт не можна замінити. Перейменуйте або пропустіть його.",
+  "task.invalidName": "Введіть коректну назву файлу або папки.",
+  "task.reconnecting": "Зв’язок перервано. Очікуємо підтвердження результату від сервера.",
+  "task.unknownResult": "Результат сервера недоступний. Перевірте історію завдань перед повторенням.",
+  "task.stopping": "Зупинка: поточна операція завершиться, якщо безпечне скасування недоступне.",
+  "task.failed": "Виконано {{completed}}/{{count}}, пропущено {{skipped}}. Помилки — у завданнях.",
+  "task.completed": "Виконано {{completed}}/{{count}}, пропущено {{skipped}}.",
+  "task.chooseDestination": "Виберіть папку призначення для вибраних об’єктів: {{count}}.",
+  "task.noDestination": "Виберіть папку в дереві.",
+  "task.copy": "Копіювати",
+  "task.move": "Перемістити"
 }

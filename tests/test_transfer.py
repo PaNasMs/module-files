@@ -16,6 +16,7 @@ common = types.ModuleType('common')
 def require(value, message):
     if not value: raise ValueError(message)
 common.require = require
+common.Rejected = ValueError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend'))
 with patch.dict(sys.modules, {'job_control': control, 'common': common}):
     import transfer
@@ -222,3 +223,79 @@ class TransferIntegrityTest(unittest.TestCase):
             finally:
                 if process.is_alive(): process.kill()
                 process.join()
+
+class ReplacementTest(unittest.TestCase):
+    def test_copy_move_and_upload_replace_only_after_complete_transfer(self):
+        import io
+        for operation in ('copy', 'move', 'upload'):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); source=root/'source'; target=root/'target'
+                source.write_bytes(b'new data'); target.write_bytes(b'old data')
+                token=transfer.replacement_revision(target)
+                if operation == 'upload': transfer.upload(target, io.BytesIO(b'new data'), 8, token)
+                else: transfer.transfer(source, target, move=operation=='move', replace_revision=token)
+                self.assertEqual(target.read_bytes(), b'new data')
+                self.assertEqual(source.exists(), operation!='move')
+                self.assertEqual(list(root.glob('.panasms-*')), [])
+
+    def test_failed_upload_and_changed_destination_preserve_previous_file(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); target=root/'target'; target.write_bytes(b'original')
+            token=transfer.replacement_revision(target)
+            with self.assertRaises(ValueError): transfer.upload(target, io.BytesIO(b'short'), 100, token)
+            self.assertEqual(target.read_bytes(), b'original')
+            target.write_bytes(b'changed by another client')
+            with self.assertRaises(ValueError): transfer.upload(target, io.BytesIO(b'new'), 3, token)
+            self.assertEqual(target.read_bytes(), b'changed by another client')
+
+    def test_directory_replacement_and_same_or_ancestor_rejection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); source=root/'source'; source.mkdir(); (source/'new').write_text('new')
+            target=root/'target'; target.mkdir(); (target/'old').write_text('old')
+            transfer.transfer(source,target,replace_revision=transfer.replacement_revision(target))
+            self.assertTrue((target/'new').exists()); self.assertFalse((target/'old').exists())
+            with self.assertRaises(ValueError): transfer.transfer(source,source,replace_revision=transfer.replacement_revision(source))
+            with self.assertRaises(ValueError): transfer.transfer(source,root,replace_revision=transfer.replacement_revision(root))
+            self.assertTrue((source/'new').exists())
+
+    def test_concurrent_replacement_rolls_back_without_overwriting_newer_data(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); target=root/'target'; target.write_bytes(b'old')
+            token=transfer.replacement_revision(target); publish=transfer.publish; changed=False
+            def concurrent(source, destination, flags=1):
+                nonlocal changed
+                if flags==2 and not changed:
+                    changed=True; target.write_bytes(b'concurrent writer')
+                return publish(source,destination,flags)
+            with patch.object(transfer,'publish',side_effect=concurrent):
+                with self.assertRaises(ValueError): transfer.upload(target,io.BytesIO(b'new'),3,token)
+            self.assertEqual(target.read_bytes(),b'concurrent writer')
+
+    def test_unsupported_atomic_exchange_keeps_original(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            target=Path(tmp)/'target';target.write_bytes(b'original')
+            with patch.object(transfer,'publish',side_effect=OSError(errno.EOPNOTSUPP,'unsupported')):
+                with self.assertRaises(OSError):transfer.upload(target,io.BytesIO(b'new'),3,transfer.replacement_revision(target))
+            self.assertEqual(target.read_bytes(),b'original')
+
+    def test_failed_rollback_retains_displaced_data(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); target=root/'target'; target.write_bytes(b'old')
+            token=transfer.replacement_revision(target); publish=transfer.publish; exchanges=0
+            def failing_rollback(source, destination, flags=1):
+                nonlocal exchanges
+                exchanges += 1
+                if exchanges == 1:
+                    target.write_bytes(b'concurrent writer')
+                    return publish(source,destination,flags)
+                raise OSError(errno.EIO,'rollback unavailable')
+            with patch.object(transfer,'publish',side_effect=failing_rollback):
+                with self.assertRaises(transfer.ReplacementUncertain):
+                    transfer.upload(target,io.BytesIO(b'new'),3,token)
+            holder, = root.glob('.panasms-upload-*')
+            self.assertEqual((holder/'content').read_bytes(),b'concurrent writer')
+            self.assertEqual(target.read_bytes(),b'new')

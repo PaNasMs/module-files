@@ -1,13 +1,13 @@
 # PaNasMs Files module
 
-Installable file manager for PaNasMs. Current manifest version: **0.2.16**.
+Installable file manager for PaNasMs. Current manifest version: **0.2.17**.
 Requires core `>=0.2.5,<0.3.0`, module API 1 and ARM64 Linux.
 
 ## Features
 
 - Folder/device sidebar with expandable trees and automatic removable-volume mounting.
 - Local and network-mounted locations, folder navigation and list/tile views.
-- Background upload queue with progress/cancellation in the shell task menu, plus drag-and-drop moves, copy, rename and folder creation.
+- Background upload, copy, move and deletion queue with progress/cancellation in the shell task menu, plus drag-and-drop moves, copy, rename and folder creation.
 - Trash, restore and permanent deletion, including mixed multi-selection of files and folders with one confirmation and per-item failures.
 - File-type icons and lazy image thumbnails in tile view.
 - Administrator permission editing for the current folder or selected entries.
@@ -93,22 +93,34 @@ change existing user accounts. No live filesystem snapshot is provided: pause
 external writers before moving actively edited data between filesystems. Power-loss
 and physical media-removal qualification remain separate hardware acceptance work.
 
-## Browser upload lifecycle
+## Background file operations (0.2.17)
 
-Files 0.2.16 publishes session-local transfer snapshots in the host QueryClient
-under `['file-uploads']`. The shell displays these in Tasks and in the top bar.
-Each snapshot includes a stable ID, destination, current filename, file/byte
-counters, status, errors and a cancel callback. This in-memory contract must not
-be persisted or transmitted; File objects stay exclusively in the queue.
+Requires core 0.2.7 or newer. Upload, copy, move and deletion batches continue
+across SPA navigation and appear in Tasks and the top bar. Copy and move accept
+multiple selected files and folders; their destination uses the shared folder tree.
 
-Uploads are independent of the Files page and continue across SPA navigation.
-They are sequential, never overwrite an existing destination, and only report a
-file complete after the server acknowledges it. Individual failures do not block
-remaining files. Cancelling skips the rest of that batch. Clearing the session
-cache aborts active/queued transfers to prevent continuation under another user.
-Reloading/closing the browser tab interrupts local-file transfers; a browser
-confirmation guards accidental reloads. Resumable uploads are not implemented.
+Name collisions pause the batch for a decision in Tasks: replace, rename or skip.
+A decision can apply to subsequent collisions in the same batch. Replacement
+validates the destination revision and atomically exchanges a complete staged
+copy with the old entry. If the filesystem cannot perform atomic exchange, the
+operation fails without deleting the original. Replacing a directory replaces
+its contents; it does not merge directories. Symbolic links and different entry
+types cannot be replaced. Concurrent changes fail safely; inspect and retry.
 
-Run `npm test` for filesystem and queue tests. The queue suite covers route-free
-execution, destination preservation, progress, partial failures, cancellation
-and session changes.
+The module publishes session-local snapshots in the host QueryClient under
+`['file-uploads']`. Snapshots include kind, item/byte counters, current job ID,
+status, errors, cancellation and an optional collision-resolution callback.
+This in-memory contract must not be persisted or transmitted. File objects stay
+exclusively in the queue. Individual failures do not block remaining items.
+
+Cancellation stops uploads and skips remaining entries. Server operations are
+cancelled when supported; otherwise the current entry finishes first. Clearing
+the session cache stops scheduling further work. Reloading or closing the tab
+interrupts uploads and loses the browser batch queue; an already submitted server
+job can continue and remains visible in Tasks. A browser confirmation guards
+accidental reloads. Resumable uploads and persistent batch queues are not implemented.
+
+Run `npm test` for filesystem and queue tests. Tests cover route-independent
+execution, multiple items, collisions, replacement races, progress, partial
+failures, cancellation and session changes. Native identity/ACL tests also run
+on the NAS before packaging.

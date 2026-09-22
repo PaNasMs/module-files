@@ -1,5 +1,6 @@
 import ctypes
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -7,15 +8,49 @@ import shutil
 import stat
 import tempfile
 
-from common import require
+from common import require, Rejected
 import job_control
 
 
-def publish(source, destination):
+def publish(source, destination, flags=1):
     libc = ctypes.CDLL(None, use_errno=True)
-    if libc.renameat2(-100, os.fsencode(source), -100, os.fsencode(destination), 1):
+    if libc.renameat2(-100, os.fsencode(source), -100, os.fsencode(destination), flags):
         code = ctypes.get_errno()
         raise OSError(code, os.strerror(code), str(destination))
+
+
+class ReplacementUncertain(Rejected):
+    pass
+
+
+def replacement_revision(path):
+    value = Path(path).lstat()
+    # Renaming changes ctime; this identity must also match after atomic exchange.
+    data = [value.st_dev, value.st_ino, value.st_mode, value.st_size, value.st_mtime_ns]
+    return hashlib.sha256(json.dumps(data).encode()).hexdigest()
+
+
+def commit_destination(stage, destination, expected=None):
+    if not expected:
+        publish(stage, destination)
+        return
+    require(not destination.is_symlink(), 'Symbolic links cannot be replaced')
+    require(stage.is_dir() == destination.is_dir(), 'File and folder types do not match; rename or skip this item')
+    require(replacement_revision(destination) == expected, 'Destination changed; choose what to do again')
+    staged_revision = replacement_revision(stage)
+    publish(stage, destination, 2)
+    restored = False
+    try:
+        if replacement_revision(stage) == expected:
+            return
+        if replacement_revision(destination) == staged_revision:
+            publish(stage, destination, 2)
+            restored = True
+    except Exception as error:
+        raise ReplacementUncertain('Could not verify replacement; previous data retained at ' + str(stage)) from error
+    if restored:
+        require(False, 'Destination changed; choose what to do again')
+    raise ReplacementUncertain('Concurrent destination change; previous data retained at ' + str(stage))
 
 
 def stat_revision(value):
@@ -66,9 +101,13 @@ def copy_file(source, destination):
     return str(destination)
 
 
-def transfer(source, destination, move=False):
+def transfer(source, destination, move=False, replace_revision=None):
     source, destination = Path(source), Path(destination)
-    if move:
+    require(source != destination and source not in destination.parents and destination not in source.parents,
+            'Source and destination must not contain each other')
+    if destination.exists():
+        require(not os.path.samefile(source, destination), 'Source and destination are the same item')
+    if move and not replace_revision:
         try:
             publish(source, destination)
             for parent in {source.parent, destination.parent}: sync_directory(parent)
@@ -78,7 +117,7 @@ def transfer(source, destination, move=False):
     holder = Path(tempfile.mkdtemp(prefix='.panasms-copy-', dir=destination.parent))
     stage = holder / 'content'
     journal = holder / 'transfer.json'
-    record = {'source': str(source), 'destination': str(destination), 'move': move, 'phase': 'copying'}
+    record = {'source': str(source), 'destination': str(destination), 'move': move, 'phase': 'copying', 'replace_revision': replace_revision}
     def save():
         with (holder / 'journal.tmp').open('w') as f:
             json.dump(record, f)
@@ -107,7 +146,7 @@ def transfer(source, destination, move=False):
         job_control.checkpoint()
         record['phase'] = 'publishing'
         save()
-        publish(stage, destination)
+        commit_destination(stage, destination, replace_revision)
         published = True
         fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
         try: os.fsync(fd)
@@ -120,19 +159,20 @@ def transfer(source, destination, move=False):
             else: source.unlink()
             sync_directory(source.parent)
         shutil.rmtree(holder)
-    except Exception:
-        if not published:
+    except Exception as error:
+        if not published and not isinstance(error, ReplacementUncertain):
             shutil.rmtree(holder)
         raise
     finally:
         job_control.capability(False)
 
 
-def upload(destination, stream, expected):
+def upload(destination, stream, expected, replace_revision=None):
     require(expected >= 0, 'Upload size is required')
     destination = Path(destination)
     holder = Path(tempfile.mkdtemp(prefix='.panasms-upload-', dir=destination.parent))
     stage = holder / 'content'
+    preserve = False
     try:
         with stage.open('xb') as output:
             remaining = expected
@@ -144,10 +184,13 @@ def upload(destination, stream, expected):
             require(not stream.read(1), 'Upload exceeds declared size')
             output.flush()
             os.fsync(output.fileno())
-        publish(stage, destination)
+        commit_destination(stage, destination, replace_revision)
         sync_directory(destination.parent)
+    except ReplacementUncertain:
+        preserve = True
+        raise
     finally:
-        shutil.rmtree(holder)
+        if not preserve: shutil.rmtree(holder)
 
 
 def download(target, output):

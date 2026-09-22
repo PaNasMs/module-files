@@ -10,6 +10,15 @@ function setup() {
     listeners = new Map(),
     notices = [];
   let sequence = 0;
+  const folders = new Map(), jobs = [], calls = [];
+  const managed = async (view, params, destination) => {
+    calls.push({ view, params, destination });
+    if (view === "files") return { entries: folders.get(destination) ?? [] };
+    if (view === "plan") return { fingerprint: "fresh", confirmation: params.params.target };
+    if (view === "run") { const job = { id: params.id, status: "succeeded", result: {} }; jobs.push(job); return job; }
+    if (view === "jobs") return jobs;
+    throw Error("Unexpected request " + view);
+  };
   class XHR {
     upload = {};
     open(method, url) {
@@ -43,11 +52,11 @@ function setup() {
   vm.runInNewContext(code, {
     module,
     exports: module.exports,
-    XMLHttpRequest: XHR,
+    XMLHttpRequest: XHR, URLSearchParams, TextEncoder, setTimeout, clearTimeout,
     require: (name) =>
       name === "@panasms/layout"
         ? { newID: () => `upload-${++sequence}` }
-        : { tr: (key) => key },
+        : name === "@panasms/operations" ? { managed } : { tr: (key) => key },
     window: {
       addEventListener: (name, fn) => {
         const set = listeners.get(name) ?? new Set();
@@ -66,10 +75,10 @@ function setup() {
   });
   const q = new QueryClient();
   const flush = async () => {
-    for (let i = 0; i < 15; i++) await Promise.resolve();
+    for (let i = 0; i < 60; i++) await Promise.resolve();
   };
   return {
-    q,
+    q, folders, calls, startFiles: module.exports.enqueueFiles,
     requests,
     listeners,
     notices,
@@ -145,4 +154,35 @@ test("session clear aborts uploads and prevents queued requests from running as 
   assert.equal(s.requests.length, 1);
   assert.equal(s.tasks(), undefined);
   assert.equal(s.listeners.get("beforeunload").size, 0);
+});
+
+
+test("conflict waits without starting transfer; rename keeps the original target", async () => {
+ const s = setup();
+ s.folders.set('/a', [{ name: 'one.txt', path: '/a/one.txt', directory: false, revision: 'existing' }]);
+ s.start(s.q, [{ name: 'one.txt', size: 5 }], '/a'); await s.flush();
+ assert.equal(s.requests.length, 0); assert.equal(s.tasks()[0].status, 'waiting');
+ s.tasks()[0].conflict.resolve({ mode: 'rename', name: 'one-new.txt' }); await s.flush();
+ assert.match(s.requests[0].url, /one-new.txt/); assert.doesNotMatch(s.requests[0].url, /replace_revision/);
+ s.requests[0].finish(); await s.flush(); assert.equal(s.tasks()[0].status, 'succeeded'); s.q.clear();
+});
+test("skip remaining conflicts and cancel a waiting batch issue no writes", async () => {
+ const s = setup();
+ s.folders.set('/a', ['one','two'].map(name => ({ name, path: '/a/'+name, directory: false, revision: name })));
+ s.start(s.q, [{name:'one',size:5},{name:'two',size:5}], '/a'); await s.flush();
+ s.tasks()[0].conflict.resolve({ mode:'skip', all:true }); await s.flush();
+ assert.equal(s.tasks()[0].skipped, 2); assert.equal(s.requests.length, 0);
+ s.start(s.q, [{name:'one',size:5}], '/a'); await s.flush(); s.tasks().at(-1).cancel(); await s.flush();
+ assert.equal(s.tasks().at(-1).status, 'cancelled'); assert.equal(s.requests.length,0); s.q.clear();
+});
+test("copy and move selected items in background with exact target plans and replacement revisions", async () => {
+ const s = setup();
+ s.folders.set('/dest', [{name:'one',path:'/dest/one',directory:false,revision:'existing'}]);
+ s.startFiles(s.q, 'copy', [{name:'one',path:'/source/one',directory:false},{name:'folder',path:'/source/folder',directory:true}], '/dest');
+ await s.flush(); s.tasks()[0].conflict.resolve({mode:'replace'}); await s.flush();
+ const runs=s.calls.filter(call=>call.view==='run');
+ assert.equal(runs.length,2); assert.equal(runs[0].params.params.replace_revision,'existing');
+ assert.equal(runs[1].params.params.destination,'/dest/folder'); assert.equal(s.tasks()[0].completed,2);
+ s.startFiles(s.q,'move',[{name:'three',path:'/source/three',directory:false}],'/dest');await s.flush();
+ assert.equal(s.calls.filter(call=>call.view==='run').at(-1).params.action,'file.move'); s.q.clear();
 });

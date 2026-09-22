@@ -1,10 +1,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { useState } from "react";
+import { enqueueFiles } from "./uploads";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button, DialogContent, Notice } from "@panasms/ui";
-import { managed, type Job } from "@panasms/operations";
-import { newID } from "@panasms/layout";
-import { waitForJob } from "@panasms/completion";
+import { Button, DialogContent } from "@panasms/ui";
 import { tr } from "./i18n";
 
 export function DeleteItems({
@@ -19,100 +16,50 @@ export function DeleteItems({
   onRemoved: (paths: string[]) => void;
 }) {
   const q = useQueryClient();
-  const [remaining, setRemaining] = useState(items);
-  const [busy, setBusy] = useState("");
-  const [errors, setErrors] = useState<string[]>([]);
-  async function remove(action: "file.trash" | "file.delete") {
-    if (busy) return;
-    const failures: string[] = [],
-      removed: string[] = [];
-    setErrors([]);
-    for (const [index, item] of remaining.entries()) {
-      setBusy(
-        tr("delete.progress", {
-          current: index + 1,
-          count: remaining.length,
-          name: item.name,
-        }),
-      );
-      try {
-        const params = { target: item.path };
-        const plan = await managed<{
-          fingerprint: string;
-          confirmation: string;
-        }>("plan", { action, params });
-        const job = await managed<{ id: string }>("run", {
-          id: newID(),
-          action,
-          params,
-          fingerprint: plan.fingerprint,
-          confirmation: plan.confirmation,
-        });
-        await waitForJob(async () => {
-          const jobs = await managed<Job[]>("jobs");
-          q.setQueryData(["jobs"], jobs);
-          return jobs.find((j) => j.id === job.id);
-        });
-        removed.push(item.path);
-      } catch (error) {
-        failures.push(`${item.name}: ${(error as Error).message}`);
-      }
-    }
-    onRemoved(removed);
-    setRemaining((old) => old.filter((item) => !removed.includes(item.path)));
-    setErrors(failures);
-    setBusy("");
-    void q.invalidateQueries({ queryKey: ["files"] });
-    void q.invalidateQueries({ queryKey: ["file-places"] });
-    if (!failures.length) onClose();
+  function remove(kind: "trash" | "delete") {
+    const destination = items[0].path.slice(0, items[0].path.lastIndexOf("/")) || "/";
+    enqueueFiles(q, kind, items.map(item => ({ ...item, directory: false })), destination);
+    onRemoved(items.map(item => item.path));
+    onClose();
   }
   return (
     <Dialog.Root
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onClose();
+        if (!open) onClose();
       }}
     >
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <DialogContent
           className="eject-confirm-dialog file-confirm-dialog"
-          busy={!!busy}
-          message={busy}
         >
           <Dialog.Title>{tr("delete.title")}</Dialog.Title>
           <Dialog.Description>
-            {tr("delete.question", { count: remaining.length })}
+            {tr("delete.question", { count: items.length })}
           </Dialog.Description>
           <ul className="file-delete-targets">
-            {remaining.map((item) => (
+            {items.map((item) => (
               <li key={item.path}>
                 <strong>{item.name}</strong>
               </li>
             ))}
           </ul>
-          {errors.map((error) => (
-            <Notice key={error} error>
-              {error}
-            </Notice>
-          ))}
           <div className="actions">
             {!inTrash && (
               <Button
                 className="primary"
-                disabled={!!busy}
-                onClick={() => void remove("file.trash")}
+                onClick={() => void remove("trash")}
               >
                 {tr("move_to_trash_f8b39dea")}
               </Button>
             )}
             <Button
-              disabled={!!busy}
-              onClick={() => void remove("file.delete")}
+              onClick={() => void remove("delete")}
             >
               {tr("delete.title")}
             </Button>
-            <Button disabled={!!busy} autoFocus onClick={onClose}>
+            <Button autoFocus onClick={onClose}>
               {tr("delete.cancel")}
             </Button>
           </div>

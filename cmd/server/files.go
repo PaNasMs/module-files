@@ -50,7 +50,7 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			w.WriteHeader(400)
 			return
 		}
-		cmd := exec.CommandContext(ctx, "/usr/bin/nsenter", "--mount=/proc/1/ns/mnt", "--", "/usr/bin/python3", "-B", "/var/lib/panasms-modules/files/backend/operations.py", mode, id.Username, target, strconv.FormatInt(r.ContentLength, 10))
+		cmd := exec.CommandContext(ctx, "/usr/bin/nsenter", "--mount=/proc/1/ns/mnt", "--", "/usr/bin/python3", "-B", "/var/lib/panasms-modules/files/backend/operations.py", mode, id.Username, target, strconv.FormatInt(r.ContentLength, 10), r.URL.Query().Get("replace_revision"))
 		cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 		cmd.WaitDelay = 5 * time.Second
 		if mode == "upload" {

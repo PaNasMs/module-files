@@ -145,5 +145,17 @@
   "delete.question": "Delete selected items ({{count}})?",
   "delete.progress": "{{current}}/{{count}} · {{name}}",
   "upload.completed": "Uploaded {{completed}} files to {{destination}}.",
-  "upload.failed": "Uploaded {{completed}} of {{count}} files. See Tasks for details."
+  "upload.failed": "Uploaded {{completed}} of {{count}} files. See Tasks for details.",
+  "task.conflictNotice": "An item named {{name}} already exists. Choose an action in Tasks.",
+  "task.replaceUnavailable": "This item cannot be replaced; rename or skip it.",
+  "task.invalidName": "Enter a valid file or folder name.",
+  "task.reconnecting": "Connection interrupted; waiting to confirm the server result.",
+  "task.unknownResult": "The server result is unavailable. Check the task history before retrying.",
+  "task.stopping": "Stopping; the current operation will finish if it cannot be cancelled safely.",
+  "task.failed": "Completed {{completed}}/{{count}}, skipped {{skipped}}. See Tasks for errors.",
+  "task.completed": "Completed {{completed}}/{{count}}, skipped {{skipped}}.",
+  "task.chooseDestination": "Choose a destination folder for {{count}} selected items.",
+  "task.noDestination": "Select a folder in the tree.",
+  "task.copy": "Copy",
+  "task.move": "Move"
 }

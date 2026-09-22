@@ -315,6 +315,7 @@ def query(user, target):
                                 "link": child.is_symlink(),
                                 "size": s.st_size,
                                 "modified": s.st_mtime,
+                                "revision": transfer.replacement_revision(child),
                             }
                         )
                     except OSError:
@@ -341,6 +342,7 @@ def query(user, target):
                     "link": child.is_symlink(),
                     "size": s.st_size,
                     "modified": s.st_mtime,
+                    "revision": transfer.replacement_revision(child),
                 }
             )
         except OSError:
@@ -380,7 +382,16 @@ def plan(action, p, user):
         }
         if action in ("file.copy", "file.move", "file.rename", "file.restore"):
             destination = path(p.get("destination"), allowed)
-            require(not destination.exists(), "Destination already exists")
+            require(target != destination and destination not in target.parents, "Source and destination must not contain each other")
+            if p.get("replace_revision"):
+                require(action in ("file.copy", "file.move"), "Replacement is not supported for this operation")
+                require(destination.exists(), "Destination changed; choose what to do again")
+                require(target.is_dir() == destination.is_dir(), "File and folder types do not match; rename or skip this item")
+                require(not os.path.samefile(target, destination), "Source and destination are the same item")
+                state["destinationRevision"] = transfer.replacement_revision(destination)
+                require(state["destinationRevision"] == p["replace_revision"], "Destination changed; choose what to do again")
+            else:
+                require(not destination.exists(), "Destination already exists")
             require(
                 target not in destination.parents, "Cannot move a folder into itself"
             )
@@ -437,7 +448,7 @@ def execute(action, p, user):
         }
     else:
         destination = path(p["destination"], allowed)
-        transfer.transfer(target, destination, move=action != 'file.copy')
+        transfer.transfer(target, destination, move=action != 'file.copy', replace_revision=p.get('replace_revision'))
     return {"message": "File operation complete"}
 
 
@@ -463,7 +474,7 @@ if __name__ == "__main__":
         elif mode == "download":
             transfer.download(p, sys.stdout.buffer)
         elif mode == "upload":
-            transfer.upload(p, sys.stdin.buffer, expected)
+            transfer.upload(p, sys.stdin.buffer, expected, sys.argv[5] or None if len(sys.argv) > 5 else None)
             print("OK")
     except Exception as error:
         print(f"File transfer failed: {type(error).__name__}: {error}", file=sys.stderr)
