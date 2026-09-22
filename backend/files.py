@@ -441,16 +441,6 @@ def execute(action, p, user):
     return {"message": "File operation complete"}
 
 
-def download(target, output):
-    fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(fd, "rb") as source:
-        info = os.fstat(fd)
-        require(stat.S_ISREG(info.st_mode), "Not a regular file")
-        output.write(f"OK {info.st_size}\n".encode())
-        output.flush()
-        shutil.copyfileobj(source, output, 1024 * 1024)
-
-
 if __name__ == "__main__":
     import sys
 
@@ -471,25 +461,9 @@ if __name__ == "__main__":
             sys.stdout.buffer.write(f"OK {len(thumbnail)}\n".encode() + thumbnail)
             sys.stdout.buffer.flush()
         elif mode == "download":
-            download(p, sys.stdout.buffer)
+            transfer.download(p, sys.stdout.buffer)
         elif mode == "upload":
-            require(not p.exists(), "File already exists")
-            fd, tmp = tempfile.mkstemp(prefix=".panasms-upload-", dir=p.parent)
-            try:
-                with os.fdopen(fd, "wb") as f:
-                    count = 0
-                    while True:
-                        chunk = sys.stdin.buffer.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        count += len(chunk)
-                    require(expected >= 0 and count == expected, "Incomplete transfer")
-                    f.flush()
-                    os.fsync(f.fileno())
-                os.link(tmp, p, follow_symlinks=False)
-            finally:
-                Path(tmp).unlink(missing_ok=True)
+            transfer.upload(p, sys.stdin.buffer, expected)
             print("OK")
     except Exception as error:
         print(f"File transfer failed: {type(error).__name__}: {error}", file=sys.stderr)

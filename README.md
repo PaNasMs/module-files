@@ -1,7 +1,7 @@
 # PaNasMs Files module
 
-Installable file manager for PaNasMs. Current manifest version: **0.2.11**.
-Requires core `>=0.2.0,<0.3.0`, module API 1 and ARM64 Linux.
+Installable file manager for PaNasMs. Current manifest version: **0.2.15**.
+Requires core `>=0.2.5,<0.3.0`, module API 1 and ARM64 Linux.
 
 ## Features
 
@@ -68,3 +68,27 @@ Version 0.2.13 requires core 0.2.3 or newer. It accepts explicitly enabled ordin
 panel accounts through the SDK's `LookupPanel`. Filesystem operations still execute
 with the selected Linux user's UID, GID and supplementary groups. Permission editing
 remains administrator-only; installing Files does not grant access to other homes.
+
+## Transfer integrity (0.2.15)
+
+- Uploads use bounded 1 MiB reads and private staging directories. Only a complete,
+  synced upload is published; a competing upload cannot overwrite the destination.
+- Final upload permissions follow the process umask, inherited group and default
+  ACL of the destination directory. Staging remains inaccessible to other users.
+- Copies validate every source entry, including nested files, before publication.
+  Cross-filesystem moves check again before deleting the source. If that check or
+  cleanup fails, both copies and a transfer journal remain for inspection.
+- Downloads check the opened file's size and revision. The server withholds its
+  final chunk until validation succeeds, so a detected concurrent modification
+  fails the download rather than silently reporting success.
+- Interrupted requests clean up staging. An uncatchable process termination can
+  leave a private `.panasms-upload-*` or `.panasms-copy-*` directory; it is not a
+  completed destination. Retry starts a new transfer, not a byte-range resume.
+
+The test suite covers competing uploads, cancellation, disconnects, process kill,
+source mutation, simulated storage exhaustion, bounded streaming and access under
+separate Linux identities. Identity/ACL tests require root and `setfacl`; run them
+only in a disposable test environment. They create temporary fixtures and do not
+change existing user accounts. No live filesystem snapshot is provided: pause
+external writers before moving actively edited data between filesystems. Power-loss
+and physical media-removal qualification remain separate hardware acceptance work.
