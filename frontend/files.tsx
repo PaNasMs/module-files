@@ -72,13 +72,22 @@ type Listing = {
   freeBytes?: number;
 };
 export function FilesPage() {
-  const session = useQuery({ queryKey: ["session"], queryFn: () => request<Identity>("session") });
+  const session = useQuery({
+    queryKey: ["session"],
+    queryFn: () => request<Identity>("session"),
+  });
   const access = useVolumeAccess();
   const q = useQueryClient();
   const browserNavigate = useNavigate();
   const [path, setPath] = useQueryValue("path");
-  const [deleting, setDeleting] = useState<{ items: Entry[]; inTrash: boolean } | null>(null);
-  const [transferDialog, setTransferDialog] = useState<{ kind: "copy" | "move"; items: Entry[] } | null>(null);
+  const [deleting, setDeleting] = useState<{
+    items: Entry[];
+    inTrash: boolean;
+  } | null>(null);
+  const [transferDialog, setTransferDialog] = useState<{
+    kind: "copy" | "move";
+    items: Entry[];
+  } | null>(null);
   const [destination, setDestination] = useState("");
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
@@ -220,7 +229,10 @@ export function FilesPage() {
   }, [editing]);
   useEffect(() => {
     if (!menu) return;
-    const origin = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const origin =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     menuRef.current?.focus();
     if (menuRef.current) {
       const box = menuRef.current.getBoundingClientRect();
@@ -234,7 +246,12 @@ export function FilesPage() {
     return () => {
       window.removeEventListener("click", close);
       window.removeEventListener("resize", close);
-      if (origin?.isConnected && (document.activeElement === document.body || popup?.contains(document.activeElement))) origin.focus();
+      if (
+        origin?.isConnected &&
+        (document.activeElement === document.body ||
+          popup?.contains(document.activeElement))
+      )
+        origin.focus();
     };
   }, [menu]);
   function choose(
@@ -266,11 +283,7 @@ export function FilesPage() {
     else setPreview(e);
   }
   const canUpload =
-    !!path &&
-    !deviceView &&
-    !inTrash &&
-    !data.error &&
-    !data.isPending;
+    !!path && !deviceView && !inTrash && !data.error && !data.isPending;
   useEffect(() => {
     const prevent = (e: globalThis.DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
@@ -292,9 +305,7 @@ export function FilesPage() {
     dragDepth.current = 0;
     setDragging(false);
     if (!canUpload) {
-      setError(
-        tr("open_an_accessible_folder_to_upload_files_b4cfcaa0"),
-      );
+      setError(tr("open_an_accessible_folder_to_upload_files_b4cfcaa0"));
       return;
     }
     if (
@@ -313,7 +324,7 @@ export function FilesPage() {
     return (
       !!destination &&
       !inTrash &&
-        dragged.current.length > 0 &&
+      dragged.current.length > 0 &&
       dragged.current.every(
         (item) =>
           !item.link &&
@@ -325,10 +336,7 @@ export function FilesPage() {
   }
   function startMove(event: DragEvent, entry: Entry) {
     const items = selection.includes(entry.path) ? selected : [entry];
-    if (
-      inTrash ||
-      items.some((item) => item.link)
-    ) {
+    if (inTrash || items.some((item) => item.link)) {
       event.preventDefault();
       return;
     }
@@ -413,16 +421,37 @@ export function FilesPage() {
       )}
       {!inTrash &&
         action("file.rename", tr("rename_715e8f0c"), mdiPencilOutline)}
-      {(["copy", "move"] as const).filter(kind => kind !== "move" || !inTrash).map(kind => (
-        <Button key={kind} title={tr(kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965")} aria-label={tr(kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965")}
-          disabled={!selected.length || selected.some(e => e.link)} onClick={() => {
-            setTransferDialog({ kind, items: [...selected] }); setDestination(""); setMenu(null);
-          }}><Icon path={kind === "copy" ? mdiContentCopy : mdiContentCut} /></Button>
-      ))}
+      {(["copy", "move"] as const)
+        .filter((kind) => kind !== "move" || !inTrash)
+        .map((kind) => (
+          <Button
+            key={kind}
+            title={tr(
+              kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965",
+            )}
+            aria-label={tr(
+              kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965",
+            )}
+            disabled={!selected.length || selected.some((e) => e.link)}
+            onClick={() => {
+              setTransferDialog({ kind, items: [...selected] });
+              setDestination("");
+              setMenu(null);
+            }}
+          >
+            <Icon path={kind === "copy" ? mdiContentCopy : mdiContentCut} />
+          </Button>
+        ))}
       {inTrash && action("file.restore", tr("restore_to_f1fd2c89"), mdiRestore)}
-      <Button title={tr("delete.title")} aria-label={tr("delete.title")}
-        disabled={!selected.length || selected.some(e => e.link)}
-        onClick={() => { setDeleting({ items: [...selected], inTrash }); setMenu(null); }}>
+      <Button
+        title={tr("delete.title")}
+        aria-label={tr("delete.title")}
+        disabled={!selected.length || selected.some((e) => e.link)}
+        onClick={() => {
+          setDeleting({ items: [...selected], inTrash });
+          setMenu(null);
+        }}
+      >
         <Icon path={inTrash ? mdiDeleteOutline : mdiTrashCanOutline} />
       </Button>
     </>
@@ -442,26 +471,110 @@ export function FilesPage() {
     : [];
   return (
     <>
-      {deleting && <DeleteItems {...deleting} onClose={() => setDeleting(null)} onRemoved={paths => setSelection(old => old.filter(p => !paths.includes(p)))} />}
-      {transferDialog && <Dialog.Root open onOpenChange={open => { if (!open) setTransferDialog(null); }}>
-        <Dialog.Portal><Dialog.Overlay className="dialog-overlay" />
-          <DialogContent className="dialog file-destination-dialog">
-            <Dialog.Title>{tr(transferDialog.kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965")}</Dialog.Title>
-            <Dialog.Description>{tr("task.chooseDestination", { count: transferDialog.items.length })}</Dialog.Description>
-            <ul className="file-destination-tree">{allPlaces.filter(place => place.kind !== "trash").map(place => <FolderTree
-              key={place.path} folder={place.path} label={place.name} current={destination} hidden={hidden}
-              navigate={setDestination} dropTarget="" folderDrop={() => ({ onDragOver: () => {}, onDragLeave: () => {}, onDrop: () => {} })}
-            />)}</ul>
-            <p className="file-destination-path">{destination || tr("task.noDestination")}</p>
-            <div className="actions">
-              <Button className="primary" disabled={!destination || transferDialog.items.some(item => destination === item.path || destination.startsWith(item.path + "/") || destination === item.path.slice(0, item.path.lastIndexOf("/")) && transferDialog.kind === "move")}
-                onClick={() => { enqueueFiles(q, transferDialog.kind, transferDialog.items, destination); setTransferDialog(null); setSelection([]); }}>
-                {tr(transferDialog.kind === "copy" ? "task.copy" : "task.move")}
-              </Button><Button onClick={() => setTransferDialog(null)}>{tr("delete.cancel")}</Button>
-            </div>
-          </DialogContent>
-        </Dialog.Portal>
-      </Dialog.Root>}
+      {deleting && (
+        <DeleteItems
+          {...deleting}
+          onClose={() => setDeleting(null)}
+          onRemoved={(paths) =>
+            setSelection((old) => old.filter((p) => !paths.includes(p)))
+          }
+        />
+      )}
+      {transferDialog && (
+        <Dialog.Root
+          open
+          onOpenChange={(open) => {
+            if (!open) setTransferDialog(null);
+          }}
+        >
+          <Dialog.Portal>
+            <Dialog.Overlay className="dialog-overlay" />
+            <DialogContent
+              className="dialog file-destination-dialog"
+              header={
+                <>
+                  {" "}
+                  <Dialog.Title>
+                    {tr(
+                      transferDialog.kind === "copy"
+                        ? "copy_to_40d0eeb3"
+                        : "move_to_44eb7965",
+                    )}
+                  </Dialog.Title>
+                  <Dialog.Description>
+                    {tr("task.chooseDestination", {
+                      count: transferDialog.items.length,
+                    })}
+                  </Dialog.Description>{" "}
+                </>
+              }
+              footer={
+                <div className="actions">
+                  <Button
+                    className="primary"
+                    disabled={
+                      !destination ||
+                      transferDialog.items.some(
+                        (item) =>
+                          destination === item.path ||
+                          destination.startsWith(item.path + "/") ||
+                          (destination ===
+                            item.path.slice(0, item.path.lastIndexOf("/")) &&
+                            transferDialog.kind === "move"),
+                      )
+                    }
+                    onClick={() => {
+                      enqueueFiles(
+                        q,
+                        transferDialog.kind,
+                        transferDialog.items,
+                        destination,
+                      );
+                      setTransferDialog(null);
+                      setSelection([]);
+                    }}
+                  >
+                    {tr(
+                      transferDialog.kind === "copy"
+                        ? "task.copy"
+                        : "task.move",
+                    )}
+                  </Button>
+                  <Button onClick={() => setTransferDialog(null)}>
+                    {tr("delete.cancel")}
+                  </Button>
+                </div>
+              }
+              variant="form"
+              intent="edit"
+            >
+              <ul className="file-destination-tree">
+                {allPlaces
+                  .filter((place) => place.kind !== "trash")
+                  .map((place) => (
+                    <FolderTree
+                      key={place.path}
+                      folder={place.path}
+                      label={place.name}
+                      current={destination}
+                      hidden={hidden}
+                      navigate={setDestination}
+                      dropTarget=""
+                      folderDrop={() => ({
+                        onDragOver: () => {},
+                        onDragLeave: () => {},
+                        onDrop: () => {},
+                      })}
+                    />
+                  ))}
+              </ul>
+              <p className="file-destination-path">
+                {destination || tr("task.noDestination")}
+              </p>
+            </DialogContent>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
       {access.dialog}
       <div className="page-heading">
         <div>
@@ -666,40 +779,56 @@ export function FilesPage() {
             className="file-toolbar"
             aria-label={tr("file_actions_90dbb13a")}
           >
-            {!!path && !deviceView && <><OperationButton
-              icon={mdiFolderPlusOutline}
-              label={tr("create_folder_944b559c")}
-              actions={["file.mkdir"]}
-              initial={{ parent: path }}
-              disabled={deviceView || inTrash || !path || !!data.error}
-            />
-            <Button
-              title={tr("upload_file_6212feb0")}
-              aria-label={tr("upload_file_6212feb0")}
-              disabled={!canUpload}
-              onClick={() => uploadInput.current?.click()}
-            >
-              <Icon path={mdiUpload} />
-            </Button>
-            <input
-              ref={uploadInput}
-              type="file"
-              multiple
-              hidden
-              onChange={(e) => {
-                if (e.target.files) void upload(Array.from(e.target.files));
-                e.target.value = "";
-              }}
-            />
-            {itemActions}
-            <span className="file-toolbar-spacer" />
-            <FolderPermissions
-              key={path}
-              path={path}
-              disabled={deviceView || inTrash || !path}
-            />
-            {session.data?.role === "admin" && <Button title={tr('share_folder')} aria-label={tr('share_folder')} disabled={inTrash || !path} onClick={() => browserNavigate('/sharing?folder=' + encodeURIComponent(path))}><Icon path={mdiShareVariantOutline} /></Button>}
-            </>}
+            {!!path && !deviceView && (
+              <>
+                <OperationButton
+                  icon={mdiFolderPlusOutline}
+                  label={tr("create_folder_944b559c")}
+                  actions={["file.mkdir"]}
+                  initial={{ parent: path }}
+                  disabled={deviceView || inTrash || !path || !!data.error}
+                />
+                <Button
+                  title={tr("upload_file_6212feb0")}
+                  aria-label={tr("upload_file_6212feb0")}
+                  disabled={!canUpload}
+                  onClick={() => uploadInput.current?.click()}
+                >
+                  <Icon path={mdiUpload} />
+                </Button>
+                <input
+                  ref={uploadInput}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    if (e.target.files) void upload(Array.from(e.target.files));
+                    e.target.value = "";
+                  }}
+                />
+                {itemActions}
+                <span className="file-toolbar-spacer" />
+                <FolderPermissions
+                  key={path}
+                  path={path}
+                  disabled={deviceView || inTrash || !path}
+                />
+                {session.data?.role === "admin" && (
+                  <Button
+                    title={tr("share_folder")}
+                    aria-label={tr("share_folder")}
+                    disabled={inTrash || !path}
+                    onClick={() =>
+                      browserNavigate(
+                        "/sharing?folder=" + encodeURIComponent(path),
+                      )
+                    }
+                  >
+                    <Icon path={mdiShareVariantOutline} />
+                  </Button>
+                )}
+              </>
+            )}
 
             <Button
               title={
@@ -874,13 +1003,16 @@ export function FilesPage() {
                       key={e.path}
                       role="option"
                       aria-selected={selection.includes(e.path)}
-                      tabIndex={focusedPath === e.path || (!entries.some(v => v.path === focusedPath) && index === 0) ? 0 : -1}
+                      tabIndex={
+                        focusedPath === e.path ||
+                        (!entries.some((v) => v.path === focusedPath) &&
+                          index === 0)
+                          ? 0
+                          : -1
+                      }
                       onFocus={() => setFocusedPath(e.path)}
                       className={`file-entry ${selection.includes(e.path) ? "selected" : ""} ${dropTarget === e.path ? "file-move-target" : ""}`}
-                      draggable={
-                        !inTrash &&
-                        !e.link
-                      }
+                      draggable={!inTrash && !e.link}
                       onDragStart={(event) => startMove(event, e)}
                       onDragEnd={() => {
                         dragged.current = [];
@@ -898,31 +1030,78 @@ export function FilesPage() {
                       onClick={(event) => choose(e, event)}
                       onDoubleClick={() => open(e)}
                       onKeyDown={(event) => {
-                        const nodes = Array.from(event.currentTarget.parentElement!.querySelectorAll<HTMLElement>('[role="option"]'));
+                        const nodes = Array.from(
+                          event.currentTarget.parentElement!.querySelectorAll<HTMLElement>(
+                            '[role="option"]',
+                          ),
+                        );
                         let nextIndex = -1;
-                        if (["ArrowDown", "ArrowRight"].includes(event.key)) nextIndex = Math.min(entries.length - 1, index + 1);
-                        if (["ArrowUp", "ArrowLeft"].includes(event.key)) nextIndex = Math.max(0, index - 1);
+                        if (["ArrowDown", "ArrowRight"].includes(event.key))
+                          nextIndex = Math.min(entries.length - 1, index + 1);
+                        if (["ArrowUp", "ArrowLeft"].includes(event.key))
+                          nextIndex = Math.max(0, index - 1);
                         if (event.key === "Home") nextIndex = 0;
                         if (event.key === "End") nextIndex = entries.length - 1;
-                        if (event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                        if (
+                          event.key.length === 1 &&
+                          event.key !== " " &&
+                          !event.ctrlKey &&
+                          !event.metaKey &&
+                          !event.altKey
+                        ) {
                           const now = Date.now();
-                          typeahead.current = { text: (now - typeahead.current.time < 700 ? typeahead.current.text : "") + event.key.toLocaleLowerCase(), time: now };
-                          nextIndex = entries.findIndex(v => v.name.toLocaleLowerCase().startsWith(typeahead.current.text));
+                          typeahead.current = {
+                            text:
+                              (now - typeahead.current.time < 700
+                                ? typeahead.current.text
+                                : "") + event.key.toLocaleLowerCase(),
+                            time: now,
+                          };
+                          nextIndex = entries.findIndex((v) =>
+                            v.name
+                              .toLocaleLowerCase()
+                              .startsWith(typeahead.current.text),
+                          );
                         }
                         if (nextIndex >= 0) {
-                          event.preventDefault(); nodes[nextIndex]?.focus();
+                          event.preventDefault();
+                          nodes[nextIndex]?.focus();
                           if (event.shiftKey) {
-                            const from = entries.findIndex(v => v.path === anchor.current);
+                            const from = entries.findIndex(
+                              (v) => v.path === anchor.current,
+                            );
                             const start = from < 0 ? index : from;
                             if (from < 0) anchor.current = e.path;
-                            setSelection(entries.slice(Math.min(start, nextIndex), Math.max(start, nextIndex) + 1).map(v => v.path));
+                            setSelection(
+                              entries
+                                .slice(
+                                  Math.min(start, nextIndex),
+                                  Math.max(start, nextIndex) + 1,
+                                )
+                                .map((v) => v.path),
+                            );
                           }
                         }
-                        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                        if (
+                          event.key === "ContextMenu" ||
+                          (event.shiftKey && event.key === "F10")
+                        ) {
                           event.preventDefault();
-                          if (!selection.includes(e.path)) setSelection([e.path]);
-                          const box = event.currentTarget.getBoundingClientRect();
-                          setMenu({ kind: "item", x: Math.max(8, Math.min(box.left, innerWidth - 260)), y: Math.max(8, Math.min(box.bottom, innerHeight - 390)) });
+                          if (!selection.includes(e.path))
+                            setSelection([e.path]);
+                          const box =
+                            event.currentTarget.getBoundingClientRect();
+                          setMenu({
+                            kind: "item",
+                            x: Math.max(
+                              8,
+                              Math.min(box.left, innerWidth - 260),
+                            ),
+                            y: Math.max(
+                              8,
+                              Math.min(box.bottom, innerHeight - 390),
+                            ),
+                          });
                         }
                         if (event.key === "Enter") {
                           event.preventDefault();
@@ -1004,7 +1183,11 @@ export function FilesPage() {
                       : "",
                   })
                 : path
-                  ? data.error ? "—" : data.isPending ? tr("loading_b6819e91", { defaultValue: "…" }) : tr("items_cb84f921", { v0: entries.length })
+                  ? data.error
+                    ? "—"
+                    : data.isPending
+                      ? tr("loading_b6819e91", { defaultValue: "…" })
+                      : tr("items_cb84f921", { v0: entries.length })
                   : tr("places_ea24302a", {
                       v0: places.length + removable.length,
                     })}
@@ -1447,12 +1630,21 @@ function Preview({ entry }: { entry: Entry }) {
         if (mime) {
           const f = new FileReader();
           f.onload = () => {
-            if (!controller.signal.aborted) { setImage(String(f.result)); setLoading(false); }
+            if (!controller.signal.aborted) {
+              setImage(String(f.result));
+              setLoading(false);
+            }
           };
           f.readAsDataURL(blob);
-        } else { setText(await blob.text()); setLoading(false); }
+        } else {
+          setText(await blob.text());
+          setLoading(false);
+        }
       } catch (e) {
-        if (!controller.signal.aborted) { setError((e as Error).message); setLoading(false); }
+        if (!controller.signal.aborted) {
+          setError((e as Error).message);
+          setLoading(false);
+        }
       }
     })();
     return () => controller.abort();
@@ -1460,22 +1652,26 @@ function Preview({ entry }: { entry: Entry }) {
   return (
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay" />
-      <DialogContent busy={loading} className="settings-dialog">
-        <div className="dialog-heading">
-          <Dialog.Title>{entry.name}</Dialog.Title>
-          <Dialog.Close asChild>
-            <Button
-              title={tr("close_4ae50d30")}
-              aria-label={tr("close_4ae50d30")}
-            >
-              <Icon path={mdiClose} />
-            </Button>
-          </Dialog.Close>
-        </div>
-        <Dialog.Description className="muted small">
-          {entry.path}
-        </Dialog.Description>
-        {error ? (
+      <DialogContent
+        className="settings-dialog"
+        header={
+          <>
+            {" "}
+            <div className="dialog-heading">
+              <Dialog.Title>{entry.name}</Dialog.Title>
+            </div>
+            <Dialog.Description className="muted small">
+              {entry.path}
+            </Dialog.Description>{" "}
+          </>
+        }
+        variant="details"
+        intent="inspect"
+        dirty={false}
+      >
+        {loading ? (
+          <p role="status">{tr("loading_b6819e91")}</p>
+        ) : error ? (
           <Notice error>{error}</Notice>
         ) : image ? (
           <img src={image} alt={entry.name} style={{ maxWidth: "100%" }} />

@@ -74,7 +74,6 @@ export function FolderPermissions({
   const [mode, setMode] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [discard, setDiscard] = useState(false);
   const data = useQuery({
     queryKey: ["folder-permissions", paths],
     queryFn: () =>
@@ -98,7 +97,12 @@ export function FolderPermissions({
       setMode(parseInt(data.data.items[0].mode, 8));
     }
   }, [data.data, open, JSON.stringify(paths)]);
-  const dirty = !!owner || !!group || !!data.data?.items.some(item => (parseInt(item.mode, 8) & mask) !== (mode & mask));
+  const dirty =
+    !!owner ||
+    !!group ||
+    !!data.data?.items.some(
+      (item) => (parseInt(item.mode, 8) & mask) !== (mode & mask),
+    );
   async function save() {
     if (!data.data) return;
     setBusy(true);
@@ -144,220 +148,223 @@ export function FolderPermissions({
   if (!admin) return null;
   return (
     <>
-    <Dialog.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (!busy) {
-          if (!next && dirty) { setDiscard(true); return; }
-          setOpen(next);
-          setError("");
-        }
-      }}
-    >
-      {!targets && (
-        <Dialog.Trigger asChild>
-          <Button
-            disabled={disabled}
-            title={tr("permissions.title")}
-            aria-label={tr("permissions.title")}
-          >
-            <Icon path={mdiFolderKeyOutline} />
-          </Button>
-        </Dialog.Trigger>
-      )}
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <DialogContent busy={busy || data.isPending} className="settings-dialog folder-permissions-dialog">
-          <div className="folder-permissions-heading">
-            <Dialog.Title>{tr("permissions.title")}</Dialog.Title>
-            <Dialog.Close asChild>
-              <Button
-                disabled={busy}
-                title={tr("permissions.cancel")}
-                aria-label={tr("permissions.cancel")}
-              >
-                <Icon path={mdiClose} />
-              </Button>
-            </Dialog.Close>
-          </div>
-          <Dialog.Description>
-            {tr("permissions.description")}
-          </Dialog.Description>
-          <strong className="folder-permissions-path">
-            {paths.length === 1
-              ? paths[0]
-              : tr("permissions.selected", { v0: paths.length })}
-          </strong>
-          {(error || data.error) && (
-            <Notice error>{error || data.error?.message}</Notice>
-          )}
-          {data.isPending ? (
-            <p>{tr("permissions.loading")}</p>
-          ) : (
-            data.data && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void save();
-                }}
-              >
-                <fieldset disabled={busy}>
-                  <label>
-                    {tr("permissions.owner")}
-                    <select
-                      value={owner}
-                      onChange={(e) => setOwner(e.target.value)}
-                    >
-                      <option value="">
-                        {tr("permissions.keep")} ·{" "}
-                        {Array.from(
-                          new Set(data.data.items.map((i) => i.owner)),
-                        ).join(", ")}
-                      </option>
-                      {data.data.users.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    {tr("permissions.group")}
-                    <select
-                      value={group}
-                      onChange={(e) => setGroup(e.target.value)}
-                    >
-                      <option value="">
-                        {tr("permissions.keep")} ·{" "}
-                        {Array.from(
-                          new Set(data.data.items.map((i) => i.group)),
-                        ).join(", ")}
-                      </option>
-                      {data.data.groups.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="table-wrap"><table>
-                    <thead>
-                      <tr>
-                        <th></th>
-                        {["read", "write", "enter"].map((name) => (
-                          <th key={name}>{tr("permissions." + name)}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        ["owner", 6],
-                        ["group", 3],
-                        ["others", 0],
-                      ].map(([name, shift]) => (
-                        <tr key={name}>
-                          <th scope="row">{tr("permissions." + name)}</th>
-                          {[4, 2, 1].map((bit, index) => {
-                            const flag = bit << Number(shift);
-                            const mixed =
-                              !(mask & flag) &&
-                              data.data!.items.some(
-                                (i) =>
-                                  !!(parseInt(i.mode, 8) & flag) !==
-                                  !!(mode & flag),
-                              );
-                            return (
-                              <td key={bit}>
-                                <input
-                                  type="checkbox"
-                                  aria-label={
-                                    tr("permissions." + name) +
-                                    ": " +
-                                    tr(
-                                      "permissions." +
-                                        ["read", "write", "enter"][index],
-                                    )
-                                  }
-                                  ref={(el) => {
-                                    if (el) el.indeterminate = mixed;
-                                  }}
-                                  checked={!!(mode & flag)}
-                                  onChange={(e) => {
-                                    setMask((value) => value | flag);
-                                    setMode((value) =>
-                                      e.target.checked
-                                        ? value | flag
-                                        : value & ~flag,
-                                    );
-                                  }}
-                                />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table></div>
-                  {data.data.items.some((i) => i.directory) && (
-                    <label className="folder-permissions-check">
-                      <input
-                        type="checkbox"
-                        checked={!!(mode & 0o2000)}
-                        ref={(el) => {
-                          if (el)
-                            el.indeterminate =
-                              !(mask & 0o2000) &&
-                              data
-                                .data!.items.filter((i) => i.directory)
-                                .some(
-                                  (i) =>
-                                    !!(parseInt(i.mode, 8) & 0o2000) !==
-                                    !!(mode & 0o2000),
-                                );
-                        }}
-                        onChange={(e) => {
-                          setMask((value) => value | 0o2000);
-                          setMode((value) =>
-                            e.target.checked ? value | 0o2000 : value & ~0o2000,
-                          );
-                        }}
-                      />
-                      {tr("permissions.inheritGroup")}
-                    </label>
-                  )}
-                  {data.data.items.some((i) => i.acl || i.defaultAcl) && (
-                    <Notice>{tr("permissions.acl")}</Notice>
-                  )}
-                </fieldset>
-                <div className="actions">
-                  <Button disabled={busy || !dirty}>
-                    {tr(busy ? "permissions.saving" : "permissions.save")}
-                  </Button>
-                  <Dialog.Close asChild>
-                    <Button type="button" disabled={busy}>
-                      {tr("permissions.cancel")}
-                    </Button>
-                  </Dialog.Close>
+      <Dialog.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (!busy) {
+            setOpen(next);
+            setError("");
+          }
+        }}
+      >
+        {!targets && (
+          <Dialog.Trigger asChild>
+            <Button
+              disabled={disabled}
+              title={tr("permissions.title")}
+              aria-label={tr("permissions.title")}
+            >
+              <Icon path={mdiFolderKeyOutline} />
+            </Button>
+          </Dialog.Trigger>
+        )}
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <DialogContent
+            dirty={dirty}
+            busy={busy}
+            className="settings-dialog folder-permissions-dialog"
+            header={
+              <>
+                {" "}
+                <div className="folder-permissions-heading">
+                  <Dialog.Title>{tr("permissions.title")}</Dialog.Title>
                 </div>
-              </form>
-            )
-          )}
-        </DialogContent>
-      </Dialog.Portal>
-    </Dialog.Root>
-    <Dialog.Root open={discard} onOpenChange={setDiscard}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="dialog-overlay" />
-        <DialogContent className="dialog compact-confirm">
-          <Dialog.Title>{tr("permissions.discardTitle")}</Dialog.Title>
-          <Dialog.Description>{tr("permissions.discardHelp")}</Dialog.Description>
-          <div className="dialog-actions">
-            <Button onClick={() => setDiscard(false)}>{tr("permissions.cancel")}</Button>
-            <Button onClick={() => { setDiscard(false); setOpen(false); }}>{tr("permissions.discard")}</Button>
-          </div>
-        </DialogContent>
-      </Dialog.Portal>
-    </Dialog.Root>
+                <Dialog.Description>
+                  {tr("permissions.description")}
+                </Dialog.Description>{" "}
+              </>
+            }
+            variant="form"
+            intent="edit"
+            footer={
+              <div className="actions">
+                <Dialog.Close asChild>
+                  <Button
+                    form="modal-folder-permissions"
+                    type="button"
+                    disabled={busy}
+                    data-dialog-cancel
+                  >
+                    {tr("permissions.cancel")}
+                  </Button>
+                </Dialog.Close>
+                <Button
+                  form="modal-folder-permissions"
+                  disabled={busy || !dirty}
+                >
+                  {tr(busy ? "permissions.saving" : "permissions.save")}
+                </Button>
+              </div>
+            }
+          >
+            <strong className="folder-permissions-path">
+              {paths.length === 1
+                ? paths[0]
+                : tr("permissions.selected", { v0: paths.length })}
+            </strong>
+            {(error || data.error) && (
+              <Notice error>{error || data.error?.message}</Notice>
+            )}
+            {data.isPending ? (
+              <p>{tr("permissions.loading")}</p>
+            ) : (
+              data.data && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void save();
+                  }}
+                  id="modal-folder-permissions"
+                >
+                  <fieldset disabled={busy}>
+                    <label>
+                      {tr("permissions.owner")}
+                      <select
+                        value={owner}
+                        onChange={(e) => setOwner(e.target.value)}
+                      >
+                        <option value="">
+                          {tr("permissions.keep")} ·{" "}
+                          {Array.from(
+                            new Set(data.data.items.map((i) => i.owner)),
+                          ).join(", ")}
+                        </option>
+                        {data.data.users.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      {tr("permissions.group")}
+                      <select
+                        value={group}
+                        onChange={(e) => setGroup(e.target.value)}
+                      >
+                        <option value="">
+                          {tr("permissions.keep")} ·{" "}
+                          {Array.from(
+                            new Set(data.data.items.map((i) => i.group)),
+                          ).join(", ")}
+                        </option>
+                        {data.data.groups.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th></th>
+                            {["read", "write", "enter"].map((name) => (
+                              <th key={name}>{tr("permissions." + name)}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            ["owner", 6],
+                            ["group", 3],
+                            ["others", 0],
+                          ].map(([name, shift]) => (
+                            <tr key={name}>
+                              <th scope="row">{tr("permissions." + name)}</th>
+                              {[4, 2, 1].map((bit, index) => {
+                                const flag = bit << Number(shift);
+                                const mixed =
+                                  !(mask & flag) &&
+                                  data.data!.items.some(
+                                    (i) =>
+                                      !!(parseInt(i.mode, 8) & flag) !==
+                                      !!(mode & flag),
+                                  );
+                                return (
+                                  <td key={bit}>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={
+                                        tr("permissions." + name) +
+                                        ": " +
+                                        tr(
+                                          "permissions." +
+                                            ["read", "write", "enter"][index],
+                                        )
+                                      }
+                                      ref={(el) => {
+                                        if (el) el.indeterminate = mixed;
+                                      }}
+                                      checked={!!(mode & flag)}
+                                      onChange={(e) => {
+                                        setMask((value) => value | flag);
+                                        setMode((value) =>
+                                          e.target.checked
+                                            ? value | flag
+                                            : value & ~flag,
+                                        );
+                                      }}
+                                    />
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {data.data.items.some((i) => i.directory) && (
+                      <label className="folder-permissions-check">
+                        <input
+                          type="checkbox"
+                          checked={!!(mode & 0o2000)}
+                          ref={(el) => {
+                            if (el)
+                              el.indeterminate =
+                                !(mask & 0o2000) &&
+                                data
+                                  .data!.items.filter((i) => i.directory)
+                                  .some(
+                                    (i) =>
+                                      !!(parseInt(i.mode, 8) & 0o2000) !==
+                                      !!(mode & 0o2000),
+                                  );
+                          }}
+                          onChange={(e) => {
+                            setMask((value) => value | 0o2000);
+                            setMode((value) =>
+                              e.target.checked
+                                ? value | 0o2000
+                                : value & ~0o2000,
+                            );
+                          }}
+                        />
+                        {tr("permissions.inheritGroup")}
+                      </label>
+                    )}
+                    {data.data.items.some((i) => i.acl || i.defaultAcl) && (
+                      <Notice>{tr("permissions.acl")}</Notice>
+                    )}
+                  </fieldset>
+                </form>
+              )
+            )}
+          </DialogContent>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   );
 }

@@ -17,9 +17,15 @@ export function DeleteItems({
 }) {
   const q = useQueryClient();
   function remove(kind: "trash" | "delete") {
-    const destination = items[0].path.slice(0, items[0].path.lastIndexOf("/")) || "/";
-    enqueueFiles(q, kind, items.map(item => ({ ...item, directory: false })), destination);
-    onRemoved(items.map(item => item.path));
+    const destination =
+      items[0].path.slice(0, items[0].path.lastIndexOf("/")) || "/";
+    enqueueFiles(
+      q,
+      kind,
+      items.map((item) => ({ ...item, directory: false })),
+      destination,
+    );
+    onRemoved(items.map((item) => item.path));
     onClose();
   }
   return (
@@ -33,11 +39,37 @@ export function DeleteItems({
         <Dialog.Overlay className="dialog-overlay" />
         <DialogContent
           className="eject-confirm-dialog file-confirm-dialog"
+          header={
+            <>
+              {" "}
+              <Dialog.Title>{tr("delete.title")}</Dialog.Title>
+              <Dialog.Description>
+                {tr("delete.question", { count: items.length })}
+              </Dialog.Description>{" "}
+            </>
+          }
+          footer={
+            <div className="actions">
+              {!inTrash && (
+                <Button
+                  className="primary"
+                  onClick={() => void remove("trash")}
+                >
+                  {tr("move_to_trash_f8b39dea")}
+                </Button>
+              )}
+              <Button className="danger" onClick={() => void remove("delete")}>
+                {tr("delete.title")}
+              </Button>
+              <Button data-dialog-cancel autoFocus onClick={onClose}>
+                {tr("delete.cancel")}
+              </Button>
+            </div>
+          }
+          variant="compact"
+          intent="confirm"
+          dirty={false}
         >
-          <Dialog.Title>{tr("delete.title")}</Dialog.Title>
-          <Dialog.Description>
-            {tr("delete.question", { count: items.length })}
-          </Dialog.Description>
           <ul className="file-delete-targets">
             {items.map((item) => (
               <li key={item.path}>
@@ -45,24 +77,6 @@ export function DeleteItems({
               </li>
             ))}
           </ul>
-          <div className="actions">
-            {!inTrash && (
-              <Button
-                className="primary"
-                onClick={() => void remove("trash")}
-              >
-                {tr("move_to_trash_f8b39dea")}
-              </Button>
-            )}
-            <Button
-              onClick={() => void remove("delete")}
-            >
-              {tr("delete.title")}
-            </Button>
-            <Button autoFocus onClick={onClose}>
-              {tr("delete.cancel")}
-            </Button>
-          </div>
         </DialogContent>
       </Dialog.Portal>
     </Dialog.Root>
