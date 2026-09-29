@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import stat
+import sys
 import tempfile
 
 from common import require, Rejected
@@ -161,7 +162,10 @@ def transfer(source, destination, move=False, replace_revision=None):
         shutil.rmtree(holder)
     except Exception as error:
         if not published and not isinstance(error, ReplacementUncertain):
-            shutil.rmtree(holder)
+            try:
+                shutil.rmtree(holder)
+            except OSError:
+                pass
         raise
     finally:
         job_control.capability(False)
@@ -190,7 +194,13 @@ def upload(destination, stream, expected, replace_revision=None):
         preserve = True
         raise
     finally:
-        if not preserve: shutil.rmtree(holder)
+        failed = sys.exc_info()[0] is not None
+        if not preserve:
+            try:
+                shutil.rmtree(holder)
+            except OSError:
+                if not failed:
+                    raise
 
 
 def download(target, output):

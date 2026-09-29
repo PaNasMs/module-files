@@ -2,7 +2,7 @@
   "id": "files",
   "title": "Files",
   "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "api": 1,
   "core": ">=0.2.7,<0.3.0",
   "architecture": "arm64",

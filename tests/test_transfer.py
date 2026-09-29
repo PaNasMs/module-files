@@ -198,6 +198,31 @@ class TransferIntegrityTest(unittest.TestCase):
                 with self.assertRaises(OSError): transfer.upload(destination, io.BytesIO(b'abc'), 3)
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
+    def test_device_failure_is_not_hidden_by_failed_stage_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            source.write_bytes(b'original')
+            destination = root / 'destination'
+            with (
+                patch.object(transfer, 'copy_file', side_effect=OSError(errno.EIO, 'Device lost')),
+                patch.object(transfer.shutil, 'rmtree', side_effect=OSError(errno.EIO, 'Cleanup failed')),
+            ):
+                with self.assertRaisesRegex(OSError, 'Device lost'):
+                    transfer.transfer(source, destination)
+            self.assertFalse(destination.exists())
+            self.assertEqual(source.read_bytes(), b'original')
+
+    def test_upload_cleanup_preserves_original_failure(self):
+        import io
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / 'uploaded'
+            with patch.object(transfer.shutil, 'rmtree', side_effect=OSError('Cleanup failed')):
+                with self.assertRaisesRegex(ValueError, 'Incomplete transfer'):
+                    transfer.upload(destination, io.BytesIO(b''), 3)
+                with self.assertRaisesRegex(OSError, 'Cleanup failed'):
+                    transfer.upload(destination, io.BytesIO(b'abc'), 3)
+
     def test_killed_upload_leaves_only_private_staging_and_allows_retry(self):
         import io
         import multiprocessing
