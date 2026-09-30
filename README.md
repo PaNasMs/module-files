@@ -124,3 +124,12 @@ Run `npm test` for filesystem and queue tests. Tests cover route-independent
 execution, multiple items, collisions, replacement races, progress, partial
 failures, cancellation and session changes. Native identity/ACL tests also run
 on the NAS before packaging.
+
+### Permissions of user files
+
+New user files and directories use the system `UMASK` from `/etc/login.defs`
+(`022` if unset), rather than the private service mask. Ownership remains with
+the Linux user running the operation. Parent-directory setgid and default ACLs
+still apply; existing files are not changed. Private module state and credentials
+retain restrictive permissions. Terminal startup scripts can override the initial
+shell mask.

@@ -1,4 +1,5 @@
 import transfer
+from user_permissions import default_umask
 import pwd
 import grp
 from contextlib import contextmanager, ExitStack
@@ -55,6 +56,7 @@ def roots(user, mounts=None):
 
 def drop(user):
     u = identity(user)
+    os.umask(default_umask())
     if os.geteuid() == 0:
         os.initgroups(u.pw_name, u.pw_gid)
         os.setgid(u.pw_gid)
