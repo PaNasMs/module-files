@@ -25,13 +25,16 @@ class UserPermissionsTest(unittest.TestCase):
 
     @unittest.skipIf(os.getuid() == 0, 'Run unprivileged; root acceptance runs separately on NAS')
     def test_upload_and_folder_escape_service_mask_without_changing_owner(self):
-        core = ROOT.parents[1] / 'backend' / 'management'
         with tempfile.TemporaryDirectory() as tmp:
             code = '''
 import os,pwd,io,sys
 from pathlib import Path
 from unittest.mock import patch
-import files,transfer
+from test_transfer import transfer, common, control
+common.os = os
+sys.modules["common"] = common
+sys.modules["job_control"] = control
+import files
 root=Path(sys.argv[1])
 os.umask(0o077)
 with patch.object(files,'default_umask',return_value=0o027):
@@ -43,7 +46,7 @@ assert (root/'upload').stat().st_mode & 0o777 == 0o640
 assert (root/'upload').stat().st_uid == os.getuid()
 '''
             subprocess.run([sys.executable, '-c', code, tmp], check=True,
-                           env={**os.environ, 'PYTHONPATH': str(ROOT / 'backend') + ':' + str(core)})
+                           env={**os.environ, 'PYTHONPATH': str(ROOT / 'backend') + ':' + str(ROOT / 'tests')})
 
 
 if __name__ == '__main__':
