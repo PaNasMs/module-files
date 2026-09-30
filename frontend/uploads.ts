@@ -7,12 +7,13 @@ import { tr } from "./i18n";
 export const uploadKey = ["file-uploads"] as const;
 export type FileItem = { name: string; path: string; directory: boolean; revision?: string; link?: boolean };
 export type FileAction = "upload" | "copy" | "move" | "trash" | "delete";
-type Decision = { mode: "replace" | "rename" | "skip"; name?: string; all?: boolean };
+export type ConflictMode = "replace" | "rename" | "skip";
+type Decision = { mode: ConflictMode; name?: string; all?: boolean };
 export type FileTask = {
   id: string; kind: FileAction; destination: string; name: string;
   count: number; completed: number; processed: number; skipped: number;
   loaded: number; total: number; status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "cancelled";
-  errors: string[]; stage?: string; jobId?: string; jobIds: string[]; cancelling?: boolean; cancel: () => void;
+  errors: string[]; jobPercent?: number; stage?: string; jobId?: string; jobIds: string[]; cancelling?: boolean; cancel: () => void;
   conflict?: { name: string; destination: string; suggested: string; directory: boolean; replaceAllowed: boolean; resolve: (choice: Decision) => void };
 };
 const queues = new WeakMap<QueryClient, Promise<void>>();
@@ -30,17 +31,17 @@ export const validName = (name: string) => !!name && name === name.trim() && !/[
 export function enqueueUpload(q: QueryClient, files: File[], destination: string) {
   enqueue(q, "upload", files.map(file => ({ name: file.name, path: "", directory: false })), destination, files);
 }
-export function enqueueFiles(q: QueryClient, kind: Exclude<FileAction, "upload">, items: FileItem[], destination: string) {
-  enqueue(q, kind, items, destination);
+export function enqueueFiles(q: QueryClient, kind: Exclude<FileAction, "upload">, items: FileItem[], destination: string, conflict?: ConflictMode) {
+  enqueue(q, kind, items, destination, [], conflict);
 }
-function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destination: string, files: File[] = []) {
+function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destination: string, files: File[] = [], conflict?: ConflictMode) {
   if (!items.length) return;
   q.setQueryDefaults(uploadKey, { gcTime: Infinity, staleTime: Infinity });
   const id = newID();
   let cancelled = false, sessionAlive = true;
   let xhr: XMLHttpRequest | undefined;
   let decide: ((choice: Decision) => void) | undefined;
-  let preference: Decision["mode"] | undefined;
+  let preference: Decision["mode"] | undefined = conflict;
   const beforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
   const cancel = () => {
     cancelled = true;
@@ -77,6 +78,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
       if (cancelled) return null;
       const existing = entries.find(entry => entry.name === name);
       if (!existing) return { target: join(destination, name) };
+      if (existing.directory && item.directory && !existing.link && existing.path !== item.path && preference) return { target: existing.path };
       const names = new Set(entries.map(entry => entry.name));
       const suggested = renamed(item.name, names, item.directory);
       const replaceAllowed = !existing.link && !!existing.revision && existing.directory === item.directory && existing.path !== item.path;
@@ -92,7 +94,8 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
         publish({ status: "running", conflict: undefined });
       }
       if (cancelled) return null;
-      if (decision.all) preference = decision.mode;
+      if (decision.all || (existing.directory && item.directory)) preference = decision.mode;
+      if (existing.directory && item.directory && !existing.link && existing.path !== item.path) return { target: existing.path };
       if (decision.mode === "skip") { publish({ skipped: task.skipped + 1 }); return null; }
       if (decision.mode === "replace") {
         if (!replaceAllowed) throw Error(tr("task.replaceUnavailable"));
@@ -107,8 +110,8 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
   async function waitJob(id: string) {
     let sentCancel = false, missing = 0;
     while (sessionAlive) {
-      let jobs: (Job & { canCancel?: boolean })[];
-      try { jobs = await managed<(Job & { canCancel?: boolean })[]>("jobs"); }
+      let jobs: (Job & { canCancel?: boolean; percent?: number })[];
+      try { jobs = await managed<(Job & { canCancel?: boolean; percent?: number })[]>("jobs"); }
       catch {
         publish({ stage: tr("task.reconnecting") });
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -124,7 +127,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
           if (job.status !== "succeeded") throw Error(typeof job.result?.error === "string" ? job.result.error : job.stage);
           return;
         }
-        publish({ stage: cancelled ? tr("task.stopping") : job.stage });
+        publish({ stage: cancelled ? tr("task.stopping") : job.stage, jobPercent: job.percent });
         if (cancelled && job.canCancel && !sentCancel) {
           try { await managed("cancel", { id }); sentCancel = true; } catch { /* Retry while the job remains cancellable. */ }
         }
@@ -133,8 +136,9 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
     }
   }
   async function operation(item: FileItem, target?: string, revision?: string) {
+    publish({ jobPercent: undefined });
     const action = "file." + kind;
-    const params = { target: item.path, ...(target ? { destination: target } : {}), ...(revision ? { replace_revision: revision } : {}) };
+    const params = { target: item.path, ...(target ? { destination: target } : {}), ...(revision ? { replace_revision: revision } : {}), ...(preference && (kind === "copy" || kind === "move") ? { conflict: preference } : {}) };
     const plan = await managed<{ fingerprint: string; confirmation: string }>("plan", { action, params });
     if (cancelled) return false;
     const job = await managed<{ id: string }>("run", { id: newID(), action, params, fingerprint: plan.fingerprint, confirmation: plan.confirmation });

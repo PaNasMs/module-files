@@ -2,19 +2,18 @@
   "id": "files",
   "title": "Files",
   "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
-  "version": "0.2.20",
+  "version": "0.3.0",
   "api": 1,
-  "core": ">=0.2.7,<0.3.0",
+  "core": ">=0.2.9,<0.3.0",
   "architecture": "arm64",
   "signer": "panasms-ci",
   "service": "bin/server",
   "dependencies": {},
   "packages": {
-    "python3": "3.11",
-    "python3-pil": "9.0",
     "util-linux": "2.38",
     "libc6": "2.34",
-    "libpam0g": "1.4.0"
+    "libpam0g": "1.4.0",
+    "rclone": "1.60"
   },
   "actions": [
     "file.mkdir",
@@ -43,5 +42,6 @@
       "description": "Файловий менеджер: дерево пристроїв і папок, завантаження, переміщення, кошик і мініатюри."
     }
   },
-  "license": "PolyForm-Noncommercial-1.0.0"
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "operations": "bin/server"
 }

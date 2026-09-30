@@ -2,8 +2,12 @@ github.com/PaNasMs/module-sdk v0.0.0-20260920205805-690be9f9c46e h1:j4SRuFkFHxXv
 github.com/PaNasMs/module-sdk v0.0.0-20260920205805-690be9f9c46e/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
 github.com/PaNasMs/module-sdk v0.0.0-20260921122403-f3445edaf54e h1:ppl7Kfn1ps6gDWPJSzDhRPcjWI5UHs6dQVTF+z8iu8g=
 github.com/PaNasMs/module-sdk v0.0.0-20260921122403-f3445edaf54e/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
+github.com/PaNasMs/module-sdk v0.0.0-20260930130407-d85753c0cf11 h1:7o5+oF8Ea37WqhjCNdpVe7Kb66hl3lisswt9d9D6MIs=
+github.com/PaNasMs/module-sdk v0.0.0-20260930130407-d85753c0cf11/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
 github.com/msteinert/pam/v2 v2.1.0 h1:er5F9TKV5nGFuTt12ubtqPHEUdeBwReP7vd3wovidGY=
 github.com/msteinert/pam/v2 v2.1.0/go.mod h1:KT28NNIcDFf3PcBmNI2mIGO4zZJ+9RSs/At2PB3IDVc=
+golang.org/x/image v0.46.0 h1:b1+oYj0Jbp6K5MDT4i4/eZpYlk3V8SJhhDKh6LBHAyQ=
+golang.org/x/image v0.46.0/go.mod h1:3B3W05VGVQyuXucLINLjXKrqISASfi4Xj+iCVkLMwew=
 golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
 golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
 golang.org/x/term v0.6.0 h1:clScbb1cHjoCkyRbWwBEUZ5H/tIFu5TAXIqaZD0Gcjw=

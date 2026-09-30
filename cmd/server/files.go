@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"github.com/PaNasMs/module-sdk/auth"
+	"github.com/PaNasMs/module-sdk/external"
 	"github.com/PaNasMs/module-sdk/transfer"
 	"log"
 	"net/http"
@@ -19,6 +21,33 @@ var thumbnailSlots = make(chan struct{}, 2)
 
 func filesHandler(allowed map[string]bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/private-grant" {
+			if r.Method != "POST" {
+				w.WriteHeader(405)
+				return
+			}
+			var request struct {
+				Grant string `json:"grant"`
+				Owner string `json:"owner"`
+			}
+			if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&request) != nil {
+				w.WriteHeader(400)
+				return
+			}
+			if _, err := auth.LookupPanel(request.Owner, allowed); err != nil {
+				w.WriteHeader(403)
+				return
+			}
+			access, err := external.New().Token(r.Context(), request.Grant, request.Owner)
+			result := grantReply{Access: access}
+			if err != nil {
+				result.Error = "Cloud access is unavailable; reconnect this account"
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			_ = json.NewEncoder(w).Encode(result)
+			return
+		}
+
 		id, e := auth.LookupPanel(r.URL.Query().Get("user"), allowed)
 		if e != nil {
 			http.Error(w, "access denied", 403)
@@ -50,7 +79,12 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			w.WriteHeader(400)
 			return
 		}
-		cmd := exec.CommandContext(ctx, "/usr/bin/nsenter", "--mount=/proc/1/ns/mnt", "--", "/usr/bin/python3", "-B", "/var/lib/panasms-modules/files/backend/operations.py", mode, id.Username, target, strconv.FormatInt(r.ContentLength, 10), r.URL.Query().Get("replace_revision"))
+		executable, err := os.Executable()
+		if err != nil {
+			w.WriteHeader(503)
+			return
+		}
+		cmd := exec.CommandContext(ctx, "/usr/bin/nsenter", "--mount=/proc/1/ns/mnt", "--", executable, "content", mode, id.Username, target, strconv.FormatInt(r.ContentLength, 10), r.URL.Query().Get("replace_revision"))
 		cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 		cmd.WaitDelay = 5 * time.Second
 		if mode == "upload" {

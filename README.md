@@ -1,13 +1,13 @@
 # PaNasMs Files module
 
-Installable file manager for PaNasMs. Current manifest version: **0.2.17**.
-Requires core `>=0.2.5,<0.3.0`, module API 1 and ARM64 Linux.
+Installable file manager for PaNasMs. Current manifest version: **0.3.0**.
+Requires core `>=0.2.9,<0.3.0`, module API 1 and ARM64 Linux.
 
 ## Features
 
 - Folder/device sidebar with expandable trees and automatic removable-volume mounting.
-- Local and network-mounted locations, folder navigation and list/tile views.
-- Background upload, copy, move and deletion queue with progress/cancellation in the shell task menu, plus drag-and-drop moves, copy, rename and folder creation.
+- Local and network-mounted locations, Google Drive and Dropbox accounts, folder navigation and list/tile views.
+- Background upload, copy, move and deletion queue with progress/cancellation in the shell task menu, plus a drop menu for copying/moving with skip, rename or replace conflict policies. Matching folders merge without removing unrelated destination files.
 - Trash, restore and permanent deletion, including mixed multi-selection of files and folders with one confirmation and per-item failures.
 - File-type icons and lazy image thumbnails in tile view.
 - Administrator permission editing for the current folder or selected entries.
@@ -19,8 +19,7 @@ and mount management remain responsibilities of the core storage subsystem.
 ## Development
 
 The frontend uses React/TypeScript and host-provided UI contracts. The server uses
-Go and the pinned [module SDK](https://github.com/PaNasMs/module-sdk). Python helpers
-are included where the module requires them. Do not bundle another copy of the
+Go and the pinned [module SDK](https://github.com/PaNasMs/module-sdk). Runtime file operations, permissions and thumbnail generation are implemented in Go. Cloud transport uses rclone under the requesting Linux identity; OAuth tokens come from the core grant broker through private inherited descriptors. Do not bundle another copy of the
 host React/router/query runtime.
 
 Use ARM64 Linux, Node.js 24, Go 1.26 or newer, Python 3, a C compiler and
@@ -31,8 +30,7 @@ sh scripts/build.sh
 ```
 
 This installs locked npm dependencies, builds the UI, runs PAM-enabled Go tests,
-builds the server, checks Python syntax/translation keys and available Python
-tests, then writes `dist/<id>-<version>-arm64.unsigned.zip`. This is an unsigned
+builds the server, checks translation keys and queue tests, then writes `dist/<id>-<version>-arm64.unsigned.zip`. This is an unsigned
 build payload and cannot be installed directly. The script labels output ARM64;
 build on ARM64 rather than treating it as a cross-compilation command.
 
@@ -60,7 +58,7 @@ cooperative cancellation checkpoints; the destination becomes visible only after
 the copy completes. Cross-filesystem moves publish the destination before deleting
 the source. Failed source cleanup retains both copies and a transfer journal for
 review. This does not provide snapshots of files being changed by other clients.
-Run `python3 scripts/check.py` for syntax, locale and transfer unit checks.
+Run `go test ./...` for native operation tests and `npm test` for locale and background-queue checks.
 
 ## Ordinary-user access
 
@@ -133,3 +131,44 @@ the Linux user running the operation. Parent-directory setgid and default ACLs
 still apply; existing files are not changed. Private module state and credentials
 retain restrictive permissions. Terminal startup scripts can override the initial
 shell mask.
+
+
+## Cloud storage
+
+Link Google/Dropbox accounts in the profile, then select **Connect cloud storage**
+in Files. File access is granted to the `files` consumer independently of Cloud
+Sync, but an existing matching account authorization is reused without another
+provider redirect. When linking a new account, enable file access once; modules
+installed later still require an explicit local grant and request provider consent
+only for permissions not yet available. Each account appears as its own expandable place; tokens are never returned
+to browser code or stored in module files. Multiple accounts per provider work
+through independent grants.
+
+Cross-location copies stream through the NAS. Moves verify copied content before
+removing the source. Interrupted operations are not replayed automatically;
+review the background task and retained copies before retrying. Destination
+folders merge; skipped source files remain in place during a move.
+
+Google Drive duplicate names are rejected rather than selecting an arbitrary
+object. Provider-native documents with no downloadable byte size must be exported
+in the provider first. Cloud previews currently fall back to file-type icons.
+Permissions and SMB/NFS publication apply only to local storage.
+
+## Native operation contract
+
+`operations: bin/server` opts into the core native-module dispatcher. The core
+validates panel access and operation confirmation, then invokes the executable
+with `operations MODE USER` and a JSON request on stdin. Results are JSON on stdout;
+progress/cancellation messages use stderr and `PANASMS_CONTROL_FD`. Ordinary file
+operations re-exec under the Linux user's UID, primary and supplementary groups.
+Only administrator permission edits retain root privileges, using pinned no-follow
+file descriptors and revision checks. The archive contains no Python runtime.
+
+## Sidebar bookmarks
+
+Use the pin action for the current folder, or right-click a folder and choose
+**Pin to sidebar**. Pinned local and cloud folders expand using the same tree and
+accept file drops. The unpin action removes only the bookmark, never the folder.
+Bookmarks are stored in the current user's NAS preferences and survive reloads
+and device changes. They reference folder paths; unavailable locations remain
+removable from the sidebar. Connected clouds appear above Trash.

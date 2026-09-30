@@ -186,3 +186,26 @@ test("copy and move selected items in background with exact target plans and rep
  s.startFiles(s.q,'move',[{name:'three',path:'/source/three',directory:false}],'/dest');await s.flush();
  assert.equal(s.calls.filter(call=>call.view==='run').at(-1).params.action,'file.move'); s.q.clear();
 });
+
+test("drop policy starts immediately and folder conflicts merge without replacing the folder", async () => {
+  const s = setup();
+  s.folders.set("/target", [{ name: "folder", path: "/target/folder", directory: true, revision: "folder-revision" }]);
+  s.startFiles(s.q, "copy", [{ name: "folder", path: "/source/folder", directory: true }], "/target", "skip");
+  await s.flush();
+  const run = s.calls.find(c => c.view === "run");
+  assert.equal(run.params.params.destination, "/target/folder");
+  assert.equal(run.params.params.conflict, "skip");
+  assert.equal(run.params.params.replace_revision, undefined);
+  assert.equal(s.tasks()[0].status, "succeeded");
+  s.q.clear();
+});
+
+test("drop skip preserves existing files and never queues their move", async () => {
+  const s = setup();
+  s.folders.set("/target", [{ name: "file", path: "/target/file", directory: false, revision: "revision" }]);
+  s.startFiles(s.q, "move", [{ name: "file", path: "/source/file", directory: false }], "/target", "skip");
+  await s.flush();
+  assert.equal(s.calls.some(c => c.view === "run"), false);
+  assert.equal(s.tasks()[0].skipped, 1);
+  s.q.clear();
+});
