@@ -267,15 +267,27 @@ export function FilesPage() {
     }
     const popup = menuRef.current;
     const close = () => setMenu(null);
-    const outside = (event: PointerEvent) => { if (!popup?.contains(event.target as Node)) close(); };
+    // A dialog opened from a menu action is rendered outside the menu but is part
+    // of its React subtree: closing the menu would discard the dialog. Keep the
+    // menu mounted and hidden until that dialog closes.
+    const dialogOpen = () => !!popup?.querySelector('[aria-haspopup="dialog"][data-state="open"]');
+    const outside = (event: PointerEvent) => { if (!dialogOpen() && !popup?.contains(event.target as Node)) close(); };
+    const resized = () => { if (!dialogOpen()) close(); };
+    const dialogs = new MutationObserver((records) => {
+      if (!popup) return;
+      if (dialogOpen()) popup.style.visibility = "hidden";
+      else if (records.some((record) => record.oldValue === "open")) close();
+    });
+    if (popup) dialogs.observe(popup, { subtree: true, attributes: true, attributeFilter: ["data-state"], attributeOldValue: true });
     const observer = new ResizeObserver(() => { if (!popup) return; const box = popup.getBoundingClientRect(); popup.style.left = `${Math.max(8, Math.min(menu.x, innerWidth - box.width - 8))}px`; popup.style.top = `${Math.max(8, Math.min(menu.y, innerHeight - box.height - 8))}px`; });
     if (popup) observer.observe(popup);
     window.addEventListener("pointerdown", outside);
-    window.addEventListener("resize", close);
+    window.addEventListener("resize", resized);
     return () => {
       window.removeEventListener("pointerdown", outside);
       observer.disconnect();
-      window.removeEventListener("resize", close);
+      dialogs.disconnect();
+      window.removeEventListener("resize", resized);
       if (
         origin?.isConnected &&
         (document.activeElement === document.body ||
