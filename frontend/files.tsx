@@ -1250,7 +1250,7 @@ export function FilesPage() {
       {menu && (
         <div
           ref={menuRef}
-          role={menu.kind === "drop" ? "menu" : undefined}
+          role={menu.kind === "drop" ? "menu" : "group"}
           tabIndex={-1}
           className="file-context-menu"
           onClick={(e) => e.stopPropagation()}
@@ -1627,6 +1627,7 @@ function Preview({ entry }: { entry: Entry }) {
   const [error, setError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
+    let objectURL: string | undefined;
     setLoading(true);
     void (async () => {
       try {
@@ -1679,14 +1680,10 @@ function Preview({ entry }: { entry: Entry }) {
         }
         const blob = new Blob(chunks, { type: mime ?? "text/plain" });
         if (mime) {
-          const f = new FileReader();
-          f.onload = () => {
-            if (!controller.signal.aborted) {
-              setImage(String(f.result));
-              setLoading(false);
-            }
-          };
-          f.readAsDataURL(blob);
+          if (controller.signal.aborted) return;
+          objectURL = URL.createObjectURL(blob);
+          setImage(objectURL);
+          setLoading(false);
         } else {
           setText(await blob.text());
           setLoading(false);
@@ -1698,7 +1695,10 @@ function Preview({ entry }: { entry: Entry }) {
         }
       }
     })();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (objectURL) URL.revokeObjectURL(objectURL);
+    };
   }, [entry]);
   return (
     <Dialog.Portal>

@@ -190,15 +190,9 @@ func Execute(ctx context.Context, owner string, r Request, engine *localfs.Engin
 			return nil, err
 		}
 
-		base := ""
-		for _, root := range places.Roots {
-			if strings.HasPrefix(p.Target, strings.TrimSuffix(root, "/")+"/") {
-				base = root
-				break
-			}
-		}
-		if base == "" {
-			return nil, errors.New("cannot trash a storage root")
+		base, err := trashBase(p.Target, places.Roots)
+		if err != nil {
+			return nil, err
 		}
 		destination, err := localfs.Trash(ctx, p.Target, base, engine)
 		if err != nil {
@@ -272,4 +266,19 @@ func mountNames(ctx context.Context) map[string]string {
 		visit(d, "", false)
 	}
 	return names
+}
+
+func trashBase(path string, roots []string) (string, error) {
+	path = filepath.Clean(path)
+	for _, root := range roots {
+		if path == filepath.Clean(root) {
+			return "", errors.New("cannot trash a storage root")
+		}
+	}
+	for _, root := range roots {
+		if strings.HasPrefix(path, strings.TrimSuffix(root, "/")+"/") {
+			return root, nil
+		}
+	}
+	return "", errors.New("cannot trash a storage root")
 }
