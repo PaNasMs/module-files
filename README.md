@@ -172,3 +172,7 @@ accept file drops. The unpin action removes only the bookmark, never the folder.
 Bookmarks are stored in the current user's NAS preferences and survive reloads
 and device changes. They reference folder paths; unavailable locations remain
 removable from the sidebar. Connected clouds appear above Trash.
+
+## Supported architectures
+
+Version 0.3.4 and newer publish separate native `arm64` and `amd64` packages. The module manager selects the compatible package automatically. CI tests both architectures on Ubuntu 24.04 runners before publishing a release. Package creation verifies the server ELF architecture against the manifest. Older ARM64-only releases remain unchanged.
