@@ -2,7 +2,7 @@
   "id": "files",
   "title": "Files",
   "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "api": 1,
   "core": ">=0.2.11,<0.3.0",
   "architecture": "arm64",
@@ -31,17 +31,21 @@
   "translations": {
     "en": {
       "title": "Files",
-      "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails."
+      "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
+      "longDescription": "Browse files on your NAS, mounted devices and connected Google Drive or Dropbox accounts in one workspace. Use the folder tree and pinned locations to reach frequently used folders, and switch between a list and tiles with image previews.\n\nUpload, download, copy, move, rename and delete files or folders, including multiple selected items. Drag and drop offers copy or move with a choice of how to handle matching names. Transfers run in the background and appear in Tasks.\n\nLocal access follows the permissions of your Linux account. Administrators can edit ownership and permissions. Cloud locations require an external account with file access enabled."
     },
     "ru": {
       "title": "Файлы",
-      "description": "Файловый менеджер: дерево устройств и папок, загрузка, перемещение, корзина и миниатюры."
+      "description": "Файловый менеджер: дерево устройств и папок, загрузка, перемещение, корзина и миниатюры.",
+      "longDescription": "Работайте с файлами NAS, подключённых устройств и аккаунтов Google Drive или Dropbox в одном разделе. Дерево папок и закреплённые расположения помогают быстро переходить к нужным данным. Доступны список и плитки с миниатюрами изображений.\n\nЗагружайте, скачивайте, копируйте, перемещайте, переименовывайте и удаляйте файлы и папки, в том числе несколько выделенных элементов. После перетаскивания можно выбрать копирование или перемещение и способ обработки совпадающих имён. Передачи выполняются в фоне и отображаются в задачах.\n\nДоступ к локальным данным определяется правами вашего пользователя Linux. Администраторы могут менять владельца и разрешения. Для облачных папок нужен подключённый внешний аккаунт с разрешением на работу с файлами."
     },
     "uk": {
       "title": "Файли",
-      "description": "Файловий менеджер: дерево пристроїв і папок, завантаження, переміщення, кошик і мініатюри."
+      "description": "Файловий менеджер: дерево пристроїв і папок, завантаження, переміщення, кошик і мініатюри.",
+      "longDescription": "Працюйте з файлами NAS, підключених пристроїв та облікових записів Google Drive або Dropbox в одному розділі. Дерево папок і закріплені розташування допомагають швидко переходити до потрібних даних. Доступні список і плитки з мініатюрами зображень.\n\nЗавантажуйте, копіюйте, переміщуйте, перейменовуйте й видаляйте файли та папки, зокрема кілька вибраних елементів. Після перетягування можна вибрати копіювання або переміщення та спосіб обробки однакових імен. Передавання виконується у фоні й відображається в завданнях.\n\nДоступ до локальних даних визначається правами вашого користувача Linux. Адміністратори можуть змінювати власника й дозволи. Для хмарних папок потрібен підключений зовнішній обліковий запис із дозволом на роботу з файлами."
     }
   },
   "license": "PolyForm-Noncommercial-1.0.0",
-  "operations": "bin/server"
+  "operations": "bin/server",
+  "longDescription": "Browse files on your NAS, mounted devices and connected Google Drive or Dropbox accounts in one workspace. Use the folder tree and pinned locations to reach frequently used folders, and switch between a list and tiles with image previews.\n\nUpload, download, copy, move, rename and delete files or folders, including multiple selected items. Drag and drop offers copy or move with a choice of how to handle matching names. Transfers run in the background and appear in Tasks.\n\nLocal access follows the permissions of your Linux account. Administrators can edit ownership and permissions. Cloud locations require an external account with file access enabled."
 }
