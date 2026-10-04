@@ -182,6 +182,7 @@
   "native_300b819ce860": "source and destination must not contain each other",
   "native_006c94ce1671": "symbolic links cannot be copied to cloud storage",
   "native_3cc74e77b64a": "folder permissions changed; reopen the dialog and try again",
+  "native_b77f13ea8d89": "You do not have permission for this operation.",
   "pins.title": "Pinned folders",
   "pins.add": "Pin to sidebar",
   "pins.remove": "Unpin from sidebar"
