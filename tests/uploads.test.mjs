@@ -209,3 +209,35 @@ test("drop skip preserves existing files and never queues their move", async () 
   assert.equal(s.tasks()[0].skipped, 1);
   s.q.clear();
 });
+
+test("a folder merge choice does not decide later conflicts unless applied to all", async () => {
+  const s = setup();
+  s.folders.set("/target", [
+    { name: "folder", path: "/target/folder", directory: true, revision: "folder-revision" },
+    { name: "one", path: "/target/one", directory: false, revision: "one-revision" },
+  ]);
+  const items = [{ name: "folder", path: "/source/folder", directory: true }, { name: "one", path: "/source/one", directory: false }];
+  s.startFiles(s.q, "copy", items, "/target");
+  await s.flush();
+  assert.equal(s.tasks()[0].conflict.name, "folder");
+  s.tasks()[0].conflict.resolve({ mode: "skip" });
+  await s.flush();
+  const merge = s.calls.filter(c => c.view === "run");
+  assert.equal(merge.length, 1);
+  assert.equal(merge[0].params.params.conflict, "skip");
+  assert.equal(s.tasks()[0].status, "waiting");
+  assert.equal(s.tasks()[0].conflict.name, "one");
+  s.tasks()[0].conflict.resolve({ mode: "replace" });
+  await s.flush();
+  const replace = s.calls.filter(c => c.view === "run")[1];
+  assert.equal(replace.params.params.replace_revision, "one-revision");
+  assert.equal(s.tasks()[0].skipped, 0);
+  assert.equal(s.tasks()[0].status, "succeeded");
+  s.startFiles(s.q, "copy", items, "/target");
+  await s.flush();
+  s.tasks().at(-1).conflict.resolve({ mode: "skip", all: true });
+  await s.flush();
+  assert.equal(s.tasks().at(-1).skipped, 1);
+  assert.equal(s.calls.filter(c => c.view === "run").length, 3);
+  s.q.clear();
+});
