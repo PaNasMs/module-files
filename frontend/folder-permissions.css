@@ -26,7 +26,7 @@
 }
 .folder-permissions-dialog select {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   background: var(--panel);
   color: inherit;
@@ -48,7 +48,7 @@
 .folder-permissions-dialog input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: var(--accent);
+  accent-color: var(--second);
 }
 .folder-permissions-dialog .folder-permissions-check {
   display: flex;
