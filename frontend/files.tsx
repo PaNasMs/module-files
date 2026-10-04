@@ -17,40 +17,7 @@ import {
   type Removable,
 } from "@panasms/removable";
 import { registerModule } from "@panasms/runtime";
-import {
-  mdiPinOutline,
-  mdiPinOffOutline,
-  mdiUsbFlashDrive,
-  mdiGoogleDrive,
-  mdiDropbox,
-  mdiCloudPlusOutline,
-  mdiMicroSd,
-  mdiFolderOutline,
-  mdiHomeOutline,
-  mdiHarddisk,
-  mdiFolderNetworkOutline,
-  mdiTrashCanOutline,
-  mdiArrowLeft,
-  mdiArrowRight,
-  mdiArrowUp,
-  mdiRefresh,
-  mdiViewGridOutline,
-  mdiFormatListBulleted,
-  mdiFolderPlusOutline,
-  mdiUpload,
-  mdiDownload,
-  mdiEyeOutline,
-  mdiPencilOutline,
-  mdiContentCopy,
-  mdiContentCut,
-  mdiRestore,
-  mdiDeleteOutline,
-  mdiShareVariantOutline,
-  mdiClose,
-  mdiEyeOffOutline,
-  mdiChevronRight,
-  mdiCheckboxMultipleMarkedOutline,
-} from "@mdi/js";
+import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -113,6 +80,8 @@ export function FilesPage() {
   } | null>(null);
   const [destination, setDestination] = useState("");
   const [dragging, setDragging] = useState(false);
+  // On a phone the places tree is folded away until asked for.
+  const [placesOpen, setPlaces] = useState(false);
   const [error, setError] = useState("");
   const [sort, setSort] = useQueryValue("sort", "name", [
     "name",
@@ -240,6 +209,7 @@ export function FilesPage() {
   function navigate(next: string) {
     if (path !== next) setPath(next);
     setEditing(false);
+    setPlaces(false);
   }
   useEffect(() => {
     setSelection([]);
@@ -624,8 +594,21 @@ export function FilesPage() {
           <p className="muted">{tr("folders_and_mounted_storage_bc031f69")}</p>
         </div>
       </div>
+      <button
+        type="button"
+        className="section-switcher file-places-switch"
+        aria-expanded={placesOpen}
+        onClick={() => setPlaces((open) => !open)}
+      >
+        <Icon path={mdiFolderOutline} />
+        <span className="section-label">{tr("places_and_devices_2859156d")}</span>
+        <span className="section-chevron">
+          <Icon path={mdiChevronDown} />
+        </span>
+      </button>
       <div
         className="file-manager"
+        data-places={placesOpen ? "open" : "closed"}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
             setMenu(null);
@@ -980,7 +963,7 @@ export function FilesPage() {
                   <button key={d.path} onClick={() => enterDevice(d)}>
                     <Icon
                       path={
-                        d.media?.kind === "sd" ? mdiMicroSd : mdiUsbFlashDrive
+                        d.media?.kind === "sd" ? mdiMicroSd : mdiUsbFlashDriveOutline
                       }
                     />
                     <strong>
@@ -1563,7 +1546,7 @@ function DeviceTree({
   const [expanded, setExpanded] = useState(false);
   const label = device.model?.trim() || device.media?.name || device.name;
   const single = singleVolume(device, devices);
-  const icon = device.media?.kind === "sd" ? mdiMicroSd : mdiUsbFlashDrive;
+  const icon = device.media?.kind === "sd" ? mdiMicroSd : mdiUsbFlashDriveOutline;
   const volumeTree = (v: Removable, name: string, volumeIcon: string) => (
     <FolderTree
       key={v.path + v.uuid}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { mdiArrowLeft, mdiChevronRight, mdiContentCopy, mdiContentCut, mdiFileReplaceOutline, mdiRenameBox, mdiSkipNext } from "@mdi/js";
+import { mdiArrowLeft, mdiChevronRight, mdiContentCopy, mdiContentCut, mdiFileReplaceOutline, mdiRenameBoxOutline, mdiSkipNext } from "@mdi/js";
 import { Button, Icon } from "@panasms/ui";
 import { tr } from "./i18n";
 import type { ConflictMode } from "./uploads";
@@ -10,6 +10,6 @@ export function DropActions({ onChoose }: { onChoose: (action: "copy" | "move", 
   return <div role="menu" aria-label={tr(`drop.${action}`)} onKeyDown={event => { if (event.key === "ArrowLeft") { event.preventDefault(); setAction(null); } }}>
     <Button role="menuitem" aria-label={tr(`drop.${action}`)} onClick={() => setAction(null)}><Icon path={mdiArrowLeft} /></Button>
     <hr />
-    {(["skip", "rename", "replace"] as const).map((mode, index) => <Button key={mode} role="menuitem" autoFocus={index === 0} aria-label={tr(`drop.${mode}`)} onClick={() => onChoose(action, mode)}><Icon path={{ skip: mdiSkipNext, rename: mdiRenameBox, replace: mdiFileReplaceOutline }[mode]} /></Button>)}
+    {(["skip", "rename", "replace"] as const).map((mode, index) => <Button key={mode} role="menuitem" autoFocus={index === 0} aria-label={tr(`drop.${mode}`)} onClick={() => onChoose(action, mode)}><Icon path={{ skip: mdiSkipNext, rename: mdiRenameBoxOutline, replace: mdiFileReplaceOutline }[mode]} /></Button>)}
   </div>;
 }
