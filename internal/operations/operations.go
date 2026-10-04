@@ -135,8 +135,13 @@ func Plan(ctx context.Context, owner string, r Request) (map[string]any, error) 
 	state := map[string]string{}
 	switch r.Action {
 	case "file.mkdir":
-		if _, err := os.Lstat(p.Target); !os.IsNotExist(err) {
+		// Only a successful lookup proves a conflict; an unreadable parent is an access error.
+		if _, err := os.Lstat(p.Target); err == nil {
 			return nil, errors.New("destination already exists")
+		} else if os.IsPermission(err) {
+			return nil, errors.New("permission denied")
+		} else if !os.IsNotExist(err) {
+			return nil, err
 		}
 		rev, err := localfs.Revision(filepath.Dir(p.Target))
 		if err != nil {
