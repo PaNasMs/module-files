@@ -71,7 +71,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
     const data = await managed<{ entries: FileItem[] }>("files", undefined, destination);
     return data.entries;
   }
-  async function resolveDestination(item: FileItem, forceAsk = false): Promise<{ target: string; revision?: string } | null> {
+  async function resolveDestination(item: FileItem, forceAsk = false): Promise<{ target: string; revision?: string; mode?: Decision["mode"] } | null> {
     let name = item.name;
     while (!cancelled) {
       const entries = await listing();
@@ -94,8 +94,9 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
         publish({ status: "running", conflict: undefined });
       }
       if (cancelled) return null;
-      if (decision.all || (existing.directory && item.directory)) preference = decision.mode;
-      if (existing.directory && item.directory && !existing.link && existing.path !== item.path) return { target: existing.path };
+      if (decision.all) preference = decision.mode;
+      // A folder choice covers the conflicts inside that folder only; later items ask again.
+      if (existing.directory && item.directory && !existing.link && existing.path !== item.path) return { target: existing.path, mode: decision.mode };
       if (decision.mode === "skip") { publish({ skipped: task.skipped + 1 }); return null; }
       if (decision.mode === "replace") {
         if (!replaceAllowed) throw Error(tr("task.replaceUnavailable"));
@@ -135,10 +136,10 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
-  async function operation(item: FileItem, target?: string, revision?: string) {
+  async function operation(item: FileItem, target?: string, revision?: string, mode = preference) {
     publish({ jobPercent: undefined });
     const action = "file." + kind;
-    const params = { target: item.path, ...(target ? { destination: target } : {}), ...(revision ? { replace_revision: revision } : {}), ...(preference && (kind === "copy" || kind === "move") ? { conflict: preference } : {}) };
+    const params = { target: item.path, ...(target ? { destination: target } : {}), ...(revision ? { replace_revision: revision } : {}), ...(mode && (kind === "copy" || kind === "move") ? { conflict: mode } : {}) };
     const plan = await managed<{ fingerprint: string; confirmation: string }>("plan", { action, params });
     if (cancelled) return false;
     const job = await managed<{ id: string }>("run", { id: newID(), action, params, fingerprint: plan.fingerprint, confirmation: plan.confirmation });
@@ -183,7 +184,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
                   if (destinationInfo && !cancelled) await upload(files[index], destinationInfo.target, destinationInfo.revision, processedBytes);
                 }
                 if (destinationInfo && !cancelled) publish({ completed: task.completed + 1 });
-              } else if (await operation(item, destinationInfo.target, destinationInfo.revision)) publish({ completed: task.completed + 1 });
+              } else if (await operation(item, destinationInfo.target, destinationInfo.revision, destinationInfo.mode ?? preference)) publish({ completed: task.completed + 1 });
             }
           } else if (await operation(item)) publish({ completed: task.completed + 1 });
         } catch (error) {
