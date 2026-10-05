@@ -77,6 +77,11 @@ func contentMain() bool {
 		cloud := &cloudfs.Client{Broker: cloudBroker()}
 		ctx := context.Background()
 		switch mode {
+		case "link":
+			var link string
+			if link, err = cloud.DirectLink(ctx, path); err == nil {
+				fmt.Fprintf(os.Stdout, "LINK %s\n", link)
+			}
 		case "download":
 			var item localfs.Entry
 			item, err = cloud.Stat(ctx, path)

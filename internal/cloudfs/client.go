@@ -25,7 +25,9 @@ type Broker func(context.Context, string) (external.Access, error)
 type Client struct {
 	Broker Broker
 	Binary string
-	run    func(context.Context, string, []string, io.Reader, io.Writer) error
+	// DropboxAPI overrides the Dropbox API origin in tests.
+	DropboxAPI string
+	run        func(context.Context, string, []string, io.Reader, io.Writer) error
 }
 
 var grantPattern = regexp.MustCompile(`^[a-f0-9]{32,64}$`)

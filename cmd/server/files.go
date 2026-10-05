@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/PaNasMs/module-files/internal/cloudfs"
 	"github.com/PaNasMs/module-sdk/auth"
 	"github.com/PaNasMs/module-sdk/external"
 	"github.com/PaNasMs/module-sdk/transfer"
@@ -79,6 +80,18 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			w.WriteHeader(400)
 			return
 		}
+		// direct=1 asks only for a provider link the browser can download from; no content is sent.
+		direct := r.Method == "GET" && mode == "download" && r.URL.Query().Get("direct") == "1"
+		if direct {
+			if !cloudfs.IsCloud(target) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			mode = "link"
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
+		}
 		executable, err := os.Executable()
 		if err != nil {
 			w.WriteHeader(503)
@@ -100,6 +113,18 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 				return
 			}
 			w.WriteHeader(204)
+			return
+		}
+		if direct {
+			out, e := cmd.Output()
+			link := strings.TrimSuffix(strings.TrimPrefix(string(out), "LINK "), "\n")
+			w.Header().Set("Cache-Control", "no-store")
+			if e != nil || !strings.HasPrefix(string(out), "LINK ") || !cloudfs.DirectLinkHost(link) {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{"url": link})
 			return
 		}
 		pipe, e := cmd.StdoutPipe()
