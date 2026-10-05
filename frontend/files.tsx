@@ -1,4 +1,5 @@
-import { enqueueUpload, enqueueFiles } from "./uploads";
+import { enqueueUpload, enqueueFiles, enqueueRestore } from "./uploads";
+import "./files.css";
 import { useCloudPlaces } from "./cloud-places";
 import { DropActions } from "./drop-actions";
 import { DeleteItems } from "./delete-items";
@@ -17,7 +18,7 @@ import {
   type Removable,
 } from "@panasms/removable";
 import { registerModule } from "@panasms/runtime";
-import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown } from "@mdi/js";
+import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +31,11 @@ type Entry = {
   link: boolean;
   size: number;
   modified: number;
+  // Trash only: where the item was before deletion and when it was deleted, when known.
+  original?: string;
+  deleted?: number;
 };
+const parentFolder = (path: string) => path.slice(0, path.lastIndexOf("/")) || "/";
 type Place = {
   name: string;
   path: string;
@@ -174,7 +179,7 @@ export function FilesPage() {
           ? a.name.localeCompare(b.name, locale(), { numeric: true })
           : sort === "size"
             ? b.size - a.size
-            : b.modified - a.modified),
+            : (b.deleted ?? b.modified) - (a.deleted ?? a.modified)),
     );
   const selected = entries.filter((e) => selection.includes(e.path));
   const single = selected.length === 1 ? selected[0] : undefined;
@@ -384,14 +389,24 @@ export function FilesPage() {
     onDragLeave: () => setDropTarget(""),
     onDrop: (event: DragEvent) => void dropMove(event, destination),
   });
-  const action = (name: string, label: string, icon: string) => (
+  // Each original folder gets its own background batch, so conflicts are asked per destination.
+  function restoreItems(items: Entry[]) {
+    const groups = new Map<string, Entry[]>();
+    for (const item of items) {
+      if (!item.original) continue;
+      const folder = parentFolder(item.original);
+      groups.set(folder, [...(groups.get(folder) ?? []), item]);
+    }
+    for (const [folder, group] of groups) enqueueRestore(q, group, folder);
+  }
+  const action = (name: string, label: string, icon: string, destination = single?.path) => (
     <OperationButton
       key={name + single?.path}
       icon={icon}
       label={label}
       actions={[name]}
       disabled={!single || single.link}
-      initial={{ target: single?.path, destination: single?.path }}
+      initial={{ target: single?.path, destination }}
       context={
         single
           ? [{ key: "target", label: tr("item_1f85d203"), value: single.path }]
@@ -453,7 +468,22 @@ export function FilesPage() {
             <Icon path={kind === "copy" ? mdiContentCopy : mdiContentCut} />
           </Button>
         ))}
-      {inTrash && action("file.restore", tr("restore_to_f1fd2c89"), mdiRestore)}
+      {inTrash && (
+        <Button
+          title={tr("trash.restore")}
+          aria-label={tr("trash.restore")}
+          disabled={!selected.length || selected.some((e) => e.link || !e.original)}
+          onClick={() => {
+            restoreItems([...selected]);
+            setMenu(null);
+            setSelection([]);
+          }}
+        >
+          <Icon path={mdiRestore} />
+        </Button>
+      )}
+      {inTrash &&
+        action("file.restore", tr("restore_to_f1fd2c89"), mdiFolderMoveOutline, single?.original ?? single?.path)}
       <Button
         title={tr("delete.title")}
         aria-label={tr("delete.title")}
@@ -1026,7 +1056,7 @@ export function FilesPage() {
                     <div className="file-list-header" aria-hidden="true">
                       <span>{tr("name_3de49828")}</span>
                       <span>{tr("size_98713e88")}</span>
-                      <span>{tr("modified_440e2b5d")}</span>
+                      <span>{tr(inTrash ? "trash.deleted" : "modified_440e2b5d")}</span>
                     </div>
                   )}
                   {entries.map((e, index) => (
@@ -1169,19 +1199,31 @@ export function FilesPage() {
                     >
                       <span className="file-entry-name">
                         <FileVisual entry={e} tiles={view === "grid"} />
-                        <span>
-                          {e.name}
-                          {e.link ? " ↗" : ""}
-                        </span>
+                        {path === "trash:" && e.original ? (
+                          <span className="file-entry-labelled">
+                            <span>
+                              {e.name}
+                              {e.link ? " ↗" : ""}
+                            </span>
+                            <small>{tr("trash.from", { folder: parentFolder(e.original) })}</small>
+                          </span>
+                        ) : (
+                          <span>
+                            {e.name}
+                            {e.link ? " ↗" : ""}
+                          </span>
+                        )}
                       </span>
                       <span className="file-entry-size">
                         {e.directory || e.size < 0 ? "—" : bytes(e.size)}
                       </span>
                       <span className="file-entry-date">
-                        {new Date(e.modified * 1000).toLocaleString(locale(), {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
+                        {inTrash && !e.deleted
+                          ? "—"
+                          : new Date((inTrash ? e.deleted! : e.modified) * 1000).toLocaleString(locale(), {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
                       </span>
                     </div>
                   ))}
@@ -1226,7 +1268,13 @@ export function FilesPage() {
                 ? " " + tr("drag_the_selection_onto_a_folder_4a092343")
                 : ""}
             </span>
-            {!cloudView && data.data?.freeBytes != null && (
+            {inTrash && selected.length > 0 && (single?.original || selected.some((e) => !e.original)) ? (
+              <span className="file-status-origin">
+                {single?.original
+                  ? tr("trash.originalPath", { path: single.original })
+                  : tr("trash.originalUnknown")}
+              </span>
+            ) : path !== "trash:" && !cloudView && data.data?.freeBytes != null && (
               <span>
                 {tr("free_a2f50530") + " "}
                 {bytes(data.data.freeBytes)}

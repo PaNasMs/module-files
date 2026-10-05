@@ -34,7 +34,12 @@ export function enqueueUpload(q: QueryClient, files: File[], destination: string
 export function enqueueFiles(q: QueryClient, kind: Exclude<FileAction, "upload">, items: FileItem[], destination: string, conflict?: ConflictMode) {
   enqueue(q, kind, items, destination, [], conflict);
 }
-function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destination: string, files: File[] = [], conflict?: ConflictMode) {
+// Restoring is a move out of the trash into the folder the item came from: the shell shows it
+// as a move, name conflicts are resolved the same way, and the server tidies the trash afterwards.
+export function enqueueRestore(q: QueryClient, items: FileItem[], destination: string) {
+  enqueue(q, "move", items, destination, [], undefined, true);
+}
+function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destination: string, files: File[] = [], conflict?: ConflictMode, restore = false) {
   if (!items.length) return;
   q.setQueryDefaults(uploadKey, { gcTime: Infinity, staleTime: Infinity });
   const id = newID();
@@ -68,8 +73,13 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
     if (event.type === "removed" && event.query.queryKey[0] === uploadKey[0]) { sessionAlive = false; cancel(); }
   });
   async function listing() {
-    const data = await managed<{ entries: FileItem[] }>("files", undefined, destination);
-    return data.entries;
+    try {
+      const data = await managed<{ entries: FileItem[] }>("files", undefined, destination);
+      return data.entries;
+    } catch (error) {
+      if (restore) throw Error(tr("trash.originalMissing", { folder: destination }));
+      throw error;
+    }
   }
   async function resolveDestination(item: FileItem, forceAsk = false): Promise<{ target: string; revision?: string; mode?: Decision["mode"] } | null> {
     let name = item.name;
@@ -138,7 +148,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
   }
   async function operation(item: FileItem, target?: string, revision?: string, mode = preference) {
     publish({ jobPercent: undefined });
-    const action = "file." + kind;
+    const action = restore ? "file.restore" : "file." + kind;
     const params = { target: item.path, ...(target ? { destination: target } : {}), ...(revision ? { replace_revision: revision } : {}), ...(mode && (kind === "copy" || kind === "move") ? { conflict: mode } : {}) };
     const plan = await managed<{ fingerprint: string; confirmation: string }>("plan", { action, params });
     if (cancelled) return false;

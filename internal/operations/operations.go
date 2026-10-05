@@ -12,12 +12,12 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 )
 
-var trashContainer = regexp.MustCompile(`^\d{19,}-[a-z0-9_]{8}$`)
+// Replaced in tests, which cannot enumerate real mounts.
+var places = Places
 
 type Params struct {
 	Target          string           `json:"target"`
@@ -112,11 +112,8 @@ func Query(ctx context.Context, owner, path string) (Listing, error) {
 				continue
 			}
 			for _, entry := range entries {
-				if entry.Directory && trashContainer.MatchString(entry.Name) {
-					items, _, e := localfs.List(entry.Path)
-					if e == nil {
-						listing.Entries = append(listing.Entries, items...)
-					}
+				if entry.Directory && localfs.TrashContainer(entry.Name) {
+					listing.Entries = append(listing.Entries, containerEntries(entry.Path, listing.Roots)...)
 				} else {
 					listing.Entries = append(listing.Entries, entry)
 				}
@@ -128,9 +125,95 @@ func Query(ctx context.Context, owner, path string) (Listing, error) {
 		return listing, nil
 	}
 	listing.Entries, listing.FreeBytes, err = localfs.List(path)
+	if err == nil {
+		// Inside a trashed folder every entry keeps its place relative to the folder's origin.
+		original, deleted := trashOrigin(path, listing.Roots)
+		for i := range listing.Entries {
+			listing.Entries[i].Deleted = deleted
+			if original != "" {
+				listing.Entries[i].Original = original + "/" + listing.Entries[i].Name
+			}
+		}
+	}
 	return listing, err
 }
+
+// containerEntries lists the item kept in one trash container, annotated with where it
+// came from. The note itself is hidden unless it is the only thing left.
+func containerEntries(container string, roots []string) []localfs.Entry {
+	all, _, err := localfs.List(container)
+	if err != nil {
+		return nil
+	}
+	items := []localfs.Entry{}
+	for _, entry := range all {
+		if !localfs.TrashMetadata(entry.Name) {
+			items = append(items, entry)
+		}
+	}
+	if len(items) == 0 {
+		items = all
+	}
+	for i := range items {
+		items[i].Original, items[i].Deleted = trashOrigin(items[i].Path, roots)
+	}
+	return items
+}
+
+// trashOrigin reports where a path inside the caller's trash came from and when its
+// container was created. The recorded path is accepted only if it names the same item
+// on the storage root that holds this trash; anything else reads as "unknown".
+func trashOrigin(path string, roots []string) (string, float64) {
+	marker := "/" + localfs.TrashName() + "/"
+	i := strings.Index(path, marker)
+	if i < 0 || filepath.Clean(path) != path {
+		return "", 0
+	}
+	base := path[:i]
+	if base == "" {
+		base = "/"
+	}
+	known := false
+	for _, root := range roots {
+		known = known || filepath.Clean(root) == base
+	}
+	parts := strings.Split(path[i+len(marker):], "/")
+	if !known || len(parts) < 2 || !localfs.TrashContainer(parts[0]) {
+		return "", 0
+	}
+	deleted := localfs.TrashDeleted(parts[0])
+	trash := path[:i+len(marker)-1]
+	original := localfs.TrashOriginal(trash + "/" + parts[0])
+	if original == "" || filepath.Base(original) != parts[1] || original == trash || strings.HasPrefix(original, trash+"/") {
+		return "", deleted
+	}
+	if root, err := trashBase(original, roots); err != nil || filepath.Clean(root) != base {
+		return "", deleted
+	}
+	return filepath.Join(append([]string{original}, parts[2:]...)...), deleted
+}
+
+// restoreDefault fills in the destination of a restore that names none: the place the
+// item was trashed from.
+func restoreDefault(ctx context.Context, owner string, r *Request) error {
+	if r.Action != "file.restore" || r.Params.Destination != "" {
+		return nil
+	}
+	listing, err := places(ctx, owner)
+	if err != nil {
+		return err
+	}
+	original, _ := trashOrigin(r.Params.Target, listing.Roots)
+	if original == "" {
+		return errors.New("original location is unknown; choose where to restore this item")
+	}
+	r.Params.Destination = original
+	return nil
+}
 func Plan(ctx context.Context, owner string, r Request) (map[string]any, error) {
+	if err := restoreDefault(ctx, owner, &r); err != nil {
+		return nil, err
+	}
 	p := r.Params
 	state := map[string]string{}
 	switch r.Action {
@@ -181,21 +264,33 @@ func Plan(ctx context.Context, owner string, r Request) (map[string]any, error) 
 	return map[string]any{"target": p.Target, "confirmation": p.Target, "fingerprint": hex.EncodeToString(hash[:]), "details": []string{p.Target, p.Destination}}, nil
 }
 func Execute(ctx context.Context, owner string, r Request, engine *localfs.Engine) (any, error) {
+	if err := restoreDefault(ctx, owner, &r); err != nil {
+		return nil, err
+	}
 	p := r.Params
 	switch r.Action {
 	case "file.mkdir":
 		return map[string]string{"message": "Folder created"}, localfs.Mkdir(p.Target)
 	case "file.delete":
-		return map[string]string{"message": "File operation complete"}, localfs.Delete(ctx, p.Target)
+		err := localfs.Delete(ctx, p.Target)
+		if err == nil {
+			// Best effort: a leftover empty container is harmless and stays invisible.
+			_ = localfs.TrashCleanup(p.Target)
+		}
+		return map[string]string{"message": "File operation complete"}, err
 	case "file.copy", "file.move", "file.rename", "file.restore":
-		return engine.Transfer(ctx, p.Target, p.Destination, r.Action != "file.copy", p.Conflict, p.ReplaceRevision)
+		result, err := engine.Transfer(ctx, p.Target, p.Destination, r.Action != "file.copy", p.Conflict, p.ReplaceRevision)
+		if err == nil && r.Action != "file.copy" {
+			_ = localfs.TrashCleanup(p.Target)
+		}
+		return result, err
 	case "file.trash":
-		places, err := Places(ctx, owner)
+		listing, err := places(ctx, owner)
 		if err != nil {
 			return nil, err
 		}
 
-		base, err := trashBase(p.Target, places.Roots)
+		base, err := trashBase(p.Target, listing.Roots)
 		if err != nil {
 			return nil, err
 		}

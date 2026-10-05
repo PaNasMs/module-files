@@ -22,6 +22,9 @@ type Entry struct {
 	Size      int64   `json:"size"`
 	Modified  float64 `json:"modified"`
 	Revision  string  `json:"revision"`
+	// Set only for items in the trash, when known.
+	Original string  `json:"original,omitempty"`
+	Deleted  float64 `json:"deleted,omitempty"`
 }
 
 func directory(path string) (*os.File, error) {
@@ -54,7 +57,7 @@ func List(path string) ([]Entry, uint64, error) {
 		if err != nil {
 			continue
 		}
-		entries = append(entries, Entry{name, strings.TrimSuffix(path, "/") + "/" + name, isDir(s), s.Mode&unix.S_IFMT == unix.S_IFLNK, s.Size, float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, revision(s)})
+		entries = append(entries, Entry{Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Directory != entries[j].Directory {
@@ -204,7 +207,7 @@ func Trash(ctx context.Context, path, base string, engine *Engine) (string, erro
 		return "", err
 	}
 	defer root.Close()
-	name := fmt.Sprintf(".panasms-trash-%d", os.Geteuid())
+	name := TrashName()
 	trash := target{root, name}
 	if err = unix.Mkdirat(int(root.Fd()), name, 0700); err != nil && !errors.Is(err, unix.EEXIST) {
 		return "", err
@@ -246,6 +249,10 @@ func Trash(ctx context.Context, path, base string, engine *Engine) (string, erro
 	}
 	if err = f.Sync(); err != nil {
 		return "", err
+	}
+	// The item is already safe in the trash; without the note it restores like a legacy item.
+	if !TrashMetadata(src.name) {
+		_ = writeTrashInfo(holder, path)
 	}
 	return filepath.Join(base, name, container, src.name), nil
 }

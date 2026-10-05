@@ -1,0 +1,30 @@
+/* Trash: the folder an item came from, on a second line under its name. */
+.file-entry-name > .file-entry-labelled {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  white-space: normal;
+}
+.file-entry-labelled > span,
+.file-entry-labelled > small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-entry-labelled > small {
+  color: var(--mute);
+}
+.file-grid .file-entry-labelled > span {
+  display: -webkit-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+/* The full original path of the selected item; long paths wrap instead of being cut. */
+.file-status-origin {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
