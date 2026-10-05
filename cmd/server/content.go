@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/PaNasMs/module-files/internal/cloudfs"
 	"github.com/PaNasMs/module-files/internal/localfs"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -88,6 +89,16 @@ func contentMain() bool {
 			if err == nil && !item.Directory && item.Size >= 0 {
 				fmt.Fprintf(os.Stdout, "OK %d\n", item.Size)
 				err = cloud.Read(ctx, path, os.Stdout)
+			} else if err == nil && !item.Directory {
+				// Google documents are exported on the fly and have no size in advance.
+				var spool *os.File
+				var size int64
+				spool, size, err = cloudfs.Spool(func(w io.Writer) error { return cloud.Read(ctx, path, w) }, cloudfs.SpoolLimit)
+				if err == nil {
+					fmt.Fprintf(os.Stdout, "OK %d\n", size)
+					_, err = io.Copy(os.Stdout, spool)
+					spool.Close()
+				}
 			} else {
 				err = fmt.Errorf("cloud file cannot be downloaded")
 			}
