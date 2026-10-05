@@ -173,6 +173,24 @@ Bookmarks are stored in the current user's NAS preferences and survive reloads
 and device changes. They reference folder paths; unavailable locations remain
 removable from the sidebar. Connected clouds appear above Trash.
 
+## Trash
+
+Moving an item to trash places it in `<storage root>/.panasms-trash-<uid>/<id>/<name>`,
+where `<id>` is the deletion time in nanoseconds and a random suffix. Next to the item
+the module writes `.panasms-trash-info.json` (`{"version":1,"original":"<absolute path>"}`),
+atomically and under the requesting Linux identity. The Trash view shows the original
+folder and the deletion time; **Restore** returns selected items to their original
+folders using the usual name-conflict choices, and **Restore to…** offers the original
+path as the default destination. A `file.restore` request without a destination
+restores to the recorded path and fails clearly when it is unknown, taken or missing.
+
+The note is untrusted input: it is read without following links and is used only if it
+is a small regular file owned by the user and names the same item by a clean absolute
+path on the storage root holding that trash. Items trashed by earlier versions have no
+note; they are listed without an original location and are restored with **Restore to…**.
+After an item is restored or permanently deleted, its `<id>` folder is removed if
+nothing but the note is left; other folders are never swept.
+
 ## Supported architectures
 
 Version 0.3.4 and newer publish separate native `arm64` and `amd64` packages. The module manager selects the compatible package automatically. CI tests both architectures on Ubuntu 24.04 runners before publishing a release. Package creation verifies the server ELF architecture against the manifest. Older ARM64-only releases remain unchanged.

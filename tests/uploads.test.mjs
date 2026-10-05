@@ -13,7 +13,7 @@ function setup() {
   const folders = new Map(), jobs = [], calls = [];
   const managed = async (view, params, destination) => {
     calls.push({ view, params, destination });
-    if (view === "files") return { entries: folders.get(destination) ?? [] };
+    if (view === "files") { if (folders.get(destination) === null) throw Error("no such file or directory"); return { entries: folders.get(destination) ?? [] }; }
     if (view === "plan") return { fingerprint: "fresh", confirmation: params.params.target };
     if (view === "run") { const job = { id: params.id, status: "succeeded", result: {} }; jobs.push(job); return job; }
     if (view === "jobs") return jobs;
@@ -79,6 +79,7 @@ function setup() {
   };
   return {
     q, folders, calls, startFiles: module.exports.enqueueFiles,
+    startRestore: module.exports.enqueueRestore,
     requests,
     listeners,
     notices,
@@ -239,5 +240,33 @@ test("a folder merge choice does not decide later conflicts unless applied to al
   await s.flush();
   assert.equal(s.tasks().at(-1).skipped, 1);
   assert.equal(s.calls.filter(c => c.view === "run").length, 3);
+  s.q.clear();
+});
+
+test("restore returns items to their original folder, asks on a taken name and explains a missing folder", async () => {
+  const s = setup();
+  const trash = "/srv/data/.panasms-trash-1000/1759600000000000000-0a1b2c3d/";
+  s.startRestore(s.q, [{ name: "a.txt", path: trash + "a.txt", directory: false }], "/srv/data/docs");
+  await s.flush();
+  const run = s.calls.filter((call) => call.view === "run").at(-1).params;
+  assert.equal(run.action, "file.restore");
+  assert.equal(run.params.target, trash + "a.txt");
+  assert.equal(run.params.destination, "/srv/data/docs/a.txt");
+  assert.equal(s.tasks()[0].kind, "move");
+  assert.equal(s.tasks()[0].status, "succeeded");
+  s.folders.set("/srv/data/docs", [{ name: "b.txt", path: "/srv/data/docs/b.txt", directory: false, revision: "r" }]);
+  s.startRestore(s.q, [{ name: "b.txt", path: trash + "b.txt", directory: false }], "/srv/data/docs");
+  await s.flush();
+  assert.equal(s.tasks().at(-1).status, "waiting");
+  s.tasks().at(-1).conflict.resolve({ mode: "rename" });
+  await s.flush();
+  assert.equal(s.calls.filter((call) => call.view === "run").at(-1).params.params.destination, "/srv/data/docs/b (1).txt");
+  s.folders.set("/srv/data/gone", null);
+  const before = s.calls.filter((call) => call.view === "run").length;
+  s.startRestore(s.q, [{ name: "c.txt", path: trash + "c.txt", directory: false }], "/srv/data/gone");
+  await s.flush();
+  assert.equal(s.tasks().at(-1).status, "failed");
+  assert.deepEqual([...s.tasks().at(-1).errors], ["c.txt: trash.originalMissing"]);
+  assert.equal(s.calls.filter((call) => call.view === "run").length, before);
   s.q.clear();
 });
