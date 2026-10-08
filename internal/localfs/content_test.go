@@ -282,3 +282,28 @@ func TestCancelledUploadDiscardsStage(t *testing.T) {
 type readerFunc func([]byte) (int, error)
 
 func (f readerFunc) Read(p []byte) (int, error) { return f(p) }
+
+func TestCancelAfterLastChunkDoesNotPublish(t *testing.T) {
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	data := strings.Repeat("y", 4096)
+	reader := readerFunc(func(p []byte) (int, error) {
+		if len(data) == 0 {
+			return 0, io.EOF
+		}
+		n := copy(p, data)
+		data = data[n:]
+		if len(data) == 0 {
+			cancel()
+		}
+		return n, nil
+	})
+	err := (&Engine{}).Upload(ctx, root+"/target", reader, 4096, "")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	items, _ := os.ReadDir(root)
+	if len(items) != 0 {
+		t.Fatal("cancelled upload published or leaked:", items)
+	}
+}
