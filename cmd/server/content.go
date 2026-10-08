@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"strconv"
 	"syscall"
@@ -74,9 +75,13 @@ func contentMain() bool {
 		os.Exit(1)
 	}
 	syscall.Umask(mask)
+	// A cancelled request terminates this process with SIGTERM (directly or through the parent's
+	// death signal). Turning it into a context cancellation lets the transfer stop at the next
+	// chunk and remove its staging directory instead of leaving it behind.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
 	if cloudfs.IsCloud(path) {
 		cloud := &cloudfs.Client{Broker: cloudBroker()}
-		ctx := context.Background()
 		switch mode {
 		case "link":
 			var link string
@@ -141,7 +146,7 @@ func contentMain() bool {
 		var size int64
 		size, err = strconv.ParseInt(os.Args[5], 10, 64)
 		if err == nil {
-			err = (&localfs.Engine{}).Upload(context.Background(), path, os.Stdin, size, os.Args[6])
+			err = (&localfs.Engine{}).Upload(ctx, path, os.Stdin, size, os.Args[6])
 		}
 	default:
 		err = fmt.Errorf("unknown content mode")

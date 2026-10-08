@@ -254,3 +254,31 @@ func TestDownloadBinaryEmptyAndSymlink(t *testing.T) {
 		t.Fatal("download followed symlink")
 	}
 }
+
+func TestCancelledUploadDiscardsStage(t *testing.T) {
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	chunks := 0
+	reader := readerFunc(func(p []byte) (int, error) {
+		chunks++
+		if chunks == 3 {
+			cancel()
+		}
+		for i := range p {
+			p[i] = 'x'
+		}
+		return len(p), nil
+	})
+	err := (&Engine{}).Upload(ctx, root+"/target", reader, 8<<20, "")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	items, _ := os.ReadDir(root)
+	if len(items) != 0 {
+		t.Fatal("cancelled upload left files behind:", items)
+	}
+}
+
+type readerFunc func([]byte) (int, error)
+
+func (f readerFunc) Read(p []byte) (int, error) { return f(p) }
