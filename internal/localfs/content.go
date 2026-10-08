@@ -166,6 +166,10 @@ func (e *Engine) Upload(ctx context.Context, path string, in io.Reader, size int
 		err = f.Sync()
 	}
 	f.Close()
+	if err == nil {
+		// A cancellation that arrives after the last chunk was read must not publish the file.
+		err = e.check(ctx)
+	}
 	if err != nil {
 		return err
 	}
