@@ -1,196 +1,228 @@
 # PaNasMs Files module
 
-Installable file manager for PaNasMs. Current manifest version: **0.3.0**.
-Requires core `>=0.2.9,<0.3.0`, module API 1 and ARM64 Linux.
+Files is the file manager module for [PaNasMs](https://github.com/PaNasMs/panasms),
+a browser panel for managing a NAS on Debian-based Linux. It browses local storage,
+mounted devices and linked Google Drive or Dropbox accounts, and runs uploads,
+copies, moves and deletions as background tasks. Project website:
+<https://panasms.github.io/>.
+
+The current version is 0.3.13. It requires PaNasMs core `>=0.2.15,<0.3.0` and
+module API 1, and is published for ARM64 and AMD64.
+
+## Install
+
+Open **Modules** in the PaNasMs panel and install Files from the catalog. The
+module manager picks the package for your architecture. Signed packages and the
+catalog are in the [module registry](https://panasms.github.io/module-registry/);
+an administrator can also upload a signed `.panasms` archive from there.
 
 ## Features
 
-- Folder/device sidebar with expandable trees and automatic removable-volume mounting.
-- Local and network-mounted locations, Google Drive and Dropbox accounts, folder navigation and list/tile views.
-- Background upload, copy, move and deletion queue with progress/cancellation in the shell task menu, plus a drop menu for copying/moving with skip, rename or replace conflict policies. Matching folders merge without removing unrelated destination files.
-- Trash, restore and permanent deletion, including mixed multi-selection of files and folders with one confirmation and per-item failures.
-- File-type icons and lazy image thumbnails in tile view.
-- Administrator permission editing for the current folder or selected entries.
+- A sidebar with storage devices, expandable folder trees, pinned folders, linked
+  cloud accounts and Trash. Removable volumes mount automatically.
+- List and tile views. Tiles show lazy image thumbnails for local files and
+  file-type icons for everything else.
+- Upload, download, create, rename, copy, move, trash, restore and permanently
+  delete files and folders, including mixed multi-selections with one
+  confirmation and per-item error reporting.
+- Drag and drop with a choice of copy or move, and of skip, rename or replace for
+  matching names.
+- Administrator editing of ownership and permissions for the current folder or
+  selected entries.
 
-File operations run under the requesting Linux identity where appropriate;
-administrative ownership/permission changes are validated by the host. Filesystem
-and mount management remain responsibilities of the core storage subsystem.
+The UI is available in English, Russian and Ukrainian.
+
+## Access model
+
+Panel administrators and ordinary panel accounts that an administrator has
+enabled can use Files. The server checks the account through the SDK's
+`LookupPanel`. Every ordinary file operation runs with the selected Linux user's
+UID, GID and supplementary groups, so a user sees only what that Linux account can
+access. Installing Files does not grant access to other users' homes. Only
+permission editing runs as root, and only for administrators.
+
+New files and directories use the system `UMASK` from `/etc/login.defs` (`022`
+if unset) instead of the service's private mask. Ownership stays with the Linux
+user who ran the operation, and parent setgid bits and default ACLs still apply.
+Existing files are not changed. Private module state and credentials keep
+restrictive permissions. Terminal startup scripts can set a different mask for
+shell sessions.
+
+Disk, filesystem and mount management belong to the core Storage page, not to
+this module.
+
+## Background operations
+
+Upload, copy, move and deletion batches keep running when you navigate to
+another page. They appear in Tasks and in the top bar with item and byte
+progress. A failed item does not stop the rest of the batch.
+
+When a name collides, the batch pauses and Tasks asks whether to replace, rename
+or skip. The answer can apply to later collisions in the same batch. Folder copies
+and moves merge into a matching destination folder and leave unrelated files
+there in place. Replacing a single entry checks the destination revision, then
+swaps in a complete staged copy with an atomic exchange. If the filesystem cannot
+do an atomic exchange, the operation fails and the original stays. Symbolic links
+and entries of a different type cannot be replaced.
+
+Cancelling stops uploads and skips remaining entries. The server cancels its
+current operation where it can; otherwise the current entry finishes first.
+Reloading or closing the tab interrupts browser uploads and drops the browser
+queue. A server job that was already submitted keeps running and stays visible in
+Tasks. The browser asks for confirmation before a reload. Resumable uploads and a
+persistent batch queue are not implemented.
+
+The module keeps session-local batch snapshots in the host QueryClient under
+`['file-uploads']`. This in-memory contract must not be persisted or sent
+anywhere, and `File` objects stay inside the queue.
+
+## Transfer integrity
+
+- Uploads are read in 1 MiB chunks into a private staging directory next to the
+  destination. Only a complete, synced upload is published, and a competing
+  upload cannot overwrite it.
+- Copies validate every source entry, including nested files, before they publish
+  the destination. A cross-filesystem move checks the copy again before it deletes
+  the source. If that check or the cleanup fails, both copies and a transfer
+  journal remain for inspection.
+- Downloads check the open file's size and revision. The server holds back the
+  last chunk until that check passes, so a file changed during the download fails
+  the download instead of reporting success.
+- An interrupted request removes its staging directory. A process killed with
+  `SIGKILL` can leave a private `.panasms-copy-*` directory on local storage, or a
+  `.panasms-upload-*` or `.panasms-transfer-*` entry in a cloud account. It is
+  never a completed destination. A retry starts a new transfer; there is no
+  byte-range resume.
+- There is no live filesystem snapshot. Stop other writers before moving data
+  that is being edited across filesystems.
+
+Power-loss and physical media-removal testing is separate hardware acceptance
+work and is not covered by this repository's tests.
+
+## Cloud storage
+
+Link a Google or Dropbox account in the panel profile, then choose **Connect
+cloud storage** in Files. Files has its own file-access grant, separate from Cloud
+Sync. If the account already has a matching provider authorization, Files reuses
+it without another provider redirect. Modules installed later still need their own
+local grant, and the provider is asked for consent only for permissions it has not
+given yet. Each account is a separate sidebar place, and several accounts per
+provider work through independent grants. OAuth tokens come from the core grant
+broker through inherited private descriptors; they never reach browser code and
+are not stored in module files. Cloud transfers run through rclone under the
+requesting Linux identity.
+
+- Copies between locations stream through the NAS. Moves verify the copied
+  content before removing the source, and skipped files stay in the source.
+- Interrupted operations are not replayed. Check the task and any retained copies
+  before retrying.
+- Google Drive paths with duplicate names are rejected instead of picking one of
+  the objects.
+- Google Docs, Sheets and Slides are exported to a private temporary file on
+  download (up to 2 GiB) and sent with their real size.
+- Dropbox downloads can use a short-lived provider link so the browser downloads
+  directly from Dropbox. Other providers stream through the NAS.
+- Cloud places show file-type icons, not thumbnails. Permission editing and
+  SMB/NFS publication apply only to local storage.
+
+## Sidebar bookmarks
+
+Use the pin action for the current folder, or right-click a folder and choose
+**Pin to sidebar**. Pinned local and cloud folders expand like other trees and
+accept dropped files. Unpinning removes only the bookmark. Bookmarks are stored as
+folder paths in the user's NAS preferences, so they follow the user across reloads
+and devices. A bookmark to an unavailable location can still be removed.
+
+## Trash
+
+Moving an item to Trash puts it at
+`<storage root>/.panasms-trash-<uid>/<id>/<name>`, where `<id>` is the deletion
+time in nanoseconds plus a random suffix. Next to the item, the module atomically
+writes `.panasms-trash-info.json` (`{"version":1,"original":"<absolute path>"}`)
+as the requesting Linux user.
+
+The Trash view shows each item's original folder and deletion time. **Restore**
+returns selected items to their original folders with the usual name-collision
+choices. **Restore to...** suggests the original folder as the destination. A
+`file.restore` request without a destination restores to the recorded path and
+fails with a clear error if that path is unknown, taken or missing.
+
+The module treats the note as untrusted input. It reads the note without
+following links and uses it only if it is a small regular file owned by the user
+that names the same item with a clean absolute path on the storage root holding
+that trash. Items trashed by versions before the note existed have no original
+location; restore them with **Restore to...**. After an item is restored or
+permanently deleted, its `<id>` folder is removed if only the note remains. No
+other folders are swept.
+
+## Native operation contract
+
+The manifest entry `operations: bin/server` opts into the core native-module
+dispatcher. The core checks panel access and operation confirmation, then runs the
+executable as `operations MODE USER` with a JSON request on stdin. Results are
+JSON on stdout. Progress and cancellation messages use stderr and
+`PANASMS_CONTROL_FD`. Ordinary operations re-exec under the Linux user's UID,
+primary group and supplementary groups. Administrator permission edits keep root
+privileges and use pinned no-follow file descriptors and revision checks. The
+package contains no Python runtime.
 
 ## Development
 
-The frontend uses React/TypeScript and host-provided UI contracts. The server uses
-Go and the pinned [module SDK](https://github.com/PaNasMs/module-sdk). Runtime file operations, permissions and thumbnail generation are implemented in Go. Cloud transport uses rclone under the requesting Linux identity; OAuth tokens come from the core grant broker through private inherited descriptors. Do not bundle another copy of the
-host React/router/query runtime.
+The UI is React and TypeScript built with Vite against the host-provided UI
+contracts. Do not bundle a second copy of the host React, router or query
+runtime. The server, file operations, permissions and thumbnails are Go, built on
+the pinned [module SDK](https://github.com/PaNasMs/module-sdk).
 
-Use ARM64 Linux, Node.js 24, Go 1.26 or newer, Python 3, a C compiler and
-`libpam0g-dev`. The release workflow pins Go 1.27.1. From this repository:
+| Path | Contents |
+| --- | --- |
+| `frontend/` | UI, background queue (`uploads.ts`) and `locales/` (`en`, `ru`, `uk`) |
+| `cmd/server/` | Module service and native operation entry point |
+| `internal/localfs/` | Local file operations, staging, trash and thumbnails |
+| `internal/cloudfs/` | rclone-based cloud access |
+| `internal/operations/` | Native operation handlers |
+| `scripts/` | `build.sh`, translation check and payload packaging |
+| `tests/` | Node tests for the background queue |
+
+You need Linux on the target architecture (ARM64 or AMD64), Node.js 24, Go 1.26
+or newer, Python 3, a C compiler and `libpam0g-dev`. CI uses Go 1.27.1. To build:
 
 ```sh
 sh scripts/build.sh
 ```
 
-This installs locked npm dependencies, builds the UI, runs PAM-enabled Go tests,
-builds the server, checks translation keys and queue tests, then writes `dist/<id>-<version>-arm64.unsigned.zip`. This is an unsigned
-build payload and cannot be installed directly. The script labels output ARM64;
-build on ARM64 rather than treating it as a cross-compilation command.
+The script runs `npm ci`, builds the UI, runs `go test -tags pam ./...`, builds
+`dist/bin/server`, runs `npm test` and writes
+`dist/files-<version>-<arch>.unsigned.zip`. The architecture comes from
+`go env GOARCH`, and packaging fails if the server binary does not match it, so
+build on the architecture you are packaging for. The unsigned payload cannot be
+installed directly.
 
-## Install and release
+To run checks separately:
 
-Install the signed version from the PaNasMs **Modules** catalog, or upload a signed
-`.panasms` archive from the [registry](https://github.com/PaNasMs/module-registry).
+- `go test -tags pam ./...` runs the native file-operation tests.
+- `npm test` checks that `ru` and `uk` have the same translation keys as `en` and
+  runs the background-queue tests.
 
-For a new release, update `manifest.json`, `package.json` and the npm lockfile
-consistently, commit, then push the matching `vX.Y.Z` tag. The workflow also builds
-branches/PRs, but only a version tag publishes a source release. Its unsigned
-payload is imported and signed by the registry, which publishes the installable
-archive and updates the catalog. Signing keys are not stored in this repository.
-Publish a new version instead of replacing an existing release.
+The tests cover competing uploads, cancellation, disconnects, process kill,
+source changes during a transfer, simulated full storage, bounded streaming,
+collisions, replacement races and partial failures. The identity and ACL tests
+need root and `setfacl`. Run them only in a disposable test environment. They
+create temporary fixtures and do not change existing user accounts.
 
-## Documentation and license
+## Release
 
-Public documentation is maintained in English. Original code uses
-[PolyForm Noncommercial 1.0.0](LICENSE); see [NOTICE](NOTICE) for third-party scope.
+Update the version in `manifest.json`, `package.json` and `package-lock.json`
+together, commit, then push a matching `vX.Y.Z` tag. The
+[build workflow](.github/workflows/build.yml) builds and tests both architectures
+on every push to `main` and on pull requests. Only a version tag publishes a
+GitHub release with the two unsigned payloads, and packaging fails if the tag does
+not match the manifest version. The module registry imports and signs the
+payloads, publishes the installable archives and updates the catalog. Signing keys
+are not stored in this repository. Publish a new version instead of replacing an
+existing release.
 
-## Interrupted transfers
+## License
 
-Version 0.2.12 requires core 0.2.2. Copies use a sibling staging directory and
-cooperative cancellation checkpoints; the destination becomes visible only after
-the copy completes. Cross-filesystem moves publish the destination before deleting
-the source. Failed source cleanup retains both copies and a transfer journal for
-review. This does not provide snapshots of files being changed by other clients.
-Run `go test ./...` for native operation tests and `npm test` for locale and background-queue checks.
-
-## Ordinary-user access
-
-Version 0.2.13 requires core 0.2.3 or newer. It accepts explicitly enabled ordinary
-panel accounts through the SDK's `LookupPanel`. Filesystem operations still execute
-with the selected Linux user's UID, GID and supplementary groups. Permission editing
-remains administrator-only; installing Files does not grant access to other homes.
-
-## Transfer integrity (0.2.15)
-
-- Uploads use bounded 1 MiB reads and private staging directories. Only a complete,
-  synced upload is published; a competing upload cannot overwrite the destination.
-- Final upload permissions follow the process umask, inherited group and default
-  ACL of the destination directory. Staging remains inaccessible to other users.
-- Copies validate every source entry, including nested files, before publication.
-  Cross-filesystem moves check again before deleting the source. If that check or
-  cleanup fails, both copies and a transfer journal remain for inspection.
-- Downloads check the opened file's size and revision. The server withholds its
-  final chunk until validation succeeds, so a detected concurrent modification
-  fails the download rather than silently reporting success.
-- Interrupted requests clean up staging. An uncatchable process termination can
-  leave a private `.panasms-upload-*` or `.panasms-copy-*` directory; it is not a
-  completed destination. Retry starts a new transfer, not a byte-range resume.
-
-The test suite covers competing uploads, cancellation, disconnects, process kill,
-source mutation, simulated storage exhaustion, bounded streaming and access under
-separate Linux identities. Identity/ACL tests require root and `setfacl`; run them
-only in a disposable test environment. They create temporary fixtures and do not
-change existing user accounts. No live filesystem snapshot is provided: pause
-external writers before moving actively edited data between filesystems. Power-loss
-and physical media-removal qualification remain separate hardware acceptance work.
-
-## Background file operations (0.2.17)
-
-Requires core 0.2.7 or newer. Upload, copy, move and deletion batches continue
-across SPA navigation and appear in Tasks and the top bar. Copy and move accept
-multiple selected files and folders; their destination uses the shared folder tree.
-
-Name collisions pause the batch for a decision in Tasks: replace, rename or skip.
-A decision can apply to subsequent collisions in the same batch. Replacement
-validates the destination revision and atomically exchanges a complete staged
-copy with the old entry. If the filesystem cannot perform atomic exchange, the
-operation fails without deleting the original. Replacing a directory replaces
-its contents; it does not merge directories. Symbolic links and different entry
-types cannot be replaced. Concurrent changes fail safely; inspect and retry.
-
-The module publishes session-local snapshots in the host QueryClient under
-`['file-uploads']`. Snapshots include kind, item/byte counters, current job ID,
-status, errors, cancellation and an optional collision-resolution callback.
-This in-memory contract must not be persisted or transmitted. File objects stay
-exclusively in the queue. Individual failures do not block remaining items.
-
-Cancellation stops uploads and skips remaining entries. Server operations are
-cancelled when supported; otherwise the current entry finishes first. Clearing
-the session cache stops scheduling further work. Reloading or closing the tab
-interrupts uploads and loses the browser batch queue; an already submitted server
-job can continue and remains visible in Tasks. A browser confirmation guards
-accidental reloads. Resumable uploads and persistent batch queues are not implemented.
-
-Run `npm test` for filesystem and queue tests. Tests cover route-independent
-execution, multiple items, collisions, replacement races, progress, partial
-failures, cancellation and session changes. Native identity/ACL tests also run
-on the NAS before packaging.
-
-### Permissions of user files
-
-New user files and directories use the system `UMASK` from `/etc/login.defs`
-(`022` if unset), rather than the private service mask. Ownership remains with
-the Linux user running the operation. Parent-directory setgid and default ACLs
-still apply; existing files are not changed. Private module state and credentials
-retain restrictive permissions. Terminal startup scripts can override the initial
-shell mask.
-
-
-## Cloud storage
-
-Link Google/Dropbox accounts in the profile, then select **Connect cloud storage**
-in Files. File access is granted to the `files` consumer independently of Cloud
-Sync, but an existing matching account authorization is reused without another
-provider redirect. When linking a new account, enable file access once; modules
-installed later still require an explicit local grant and request provider consent
-only for permissions not yet available. Each account appears as its own expandable place; tokens are never returned
-to browser code or stored in module files. Multiple accounts per provider work
-through independent grants.
-
-Cross-location copies stream through the NAS. Moves verify copied content before
-removing the source. Interrupted operations are not replayed automatically;
-review the background task and retained copies before retrying. Destination
-folders merge; skipped source files remain in place during a move.
-
-Google Drive duplicate names are rejected rather than selecting an arbitrary
-object. Provider-native documents with no downloadable byte size must be exported
-in the provider first. Cloud previews currently fall back to file-type icons.
-Permissions and SMB/NFS publication apply only to local storage.
-
-## Native operation contract
-
-`operations: bin/server` opts into the core native-module dispatcher. The core
-validates panel access and operation confirmation, then invokes the executable
-with `operations MODE USER` and a JSON request on stdin. Results are JSON on stdout;
-progress/cancellation messages use stderr and `PANASMS_CONTROL_FD`. Ordinary file
-operations re-exec under the Linux user's UID, primary and supplementary groups.
-Only administrator permission edits retain root privileges, using pinned no-follow
-file descriptors and revision checks. The archive contains no Python runtime.
-
-## Sidebar bookmarks
-
-Use the pin action for the current folder, or right-click a folder and choose
-**Pin to sidebar**. Pinned local and cloud folders expand using the same tree and
-accept file drops. The unpin action removes only the bookmark, never the folder.
-Bookmarks are stored in the current user's NAS preferences and survive reloads
-and device changes. They reference folder paths; unavailable locations remain
-removable from the sidebar. Connected clouds appear above Trash.
-
-## Trash
-
-Moving an item to trash places it in `<storage root>/.panasms-trash-<uid>/<id>/<name>`,
-where `<id>` is the deletion time in nanoseconds and a random suffix. Next to the item
-the module writes `.panasms-trash-info.json` (`{"version":1,"original":"<absolute path>"}`),
-atomically and under the requesting Linux identity. The Trash view shows the original
-folder and the deletion time; **Restore** returns selected items to their original
-folders using the usual name-conflict choices, and **Restore to…** offers the original
-path as the default destination. A `file.restore` request without a destination
-restores to the recorded path and fails clearly when it is unknown, taken or missing.
-
-The note is untrusted input: it is read without following links and is used only if it
-is a small regular file owned by the user and names the same item by a clean absolute
-path on the storage root holding that trash. Items trashed by earlier versions have no
-note; they are listed without an original location and are restored with **Restore to…**.
-After an item is restored or permanently deleted, its `<id>` folder is removed if
-nothing but the note is left; other folders are never swept.
-
-## Supported architectures
-
-Version 0.3.4 and newer publish separate native `arm64` and `amd64` packages. The module manager selects the compatible package automatically. CI tests both architectures on Ubuntu 24.04 runners before publishing a release. Package creation verifies the server ELF architecture against the manifest. Older ARM64-only releases remain unchanged.
+Original code is licensed under
+[PolyForm Noncommercial 1.0.0](LICENSE). See [NOTICE](NOTICE) for the scope of
+the license and for third-party components.
