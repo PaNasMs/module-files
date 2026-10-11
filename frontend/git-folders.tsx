@@ -10,7 +10,6 @@ import {
   Icon,
   Notice,
   DialogContent,
-  WaitingSurface,
 } from "@panasms/ui";
 import { tr } from "./i18n";
 export type GitState = {
@@ -97,7 +96,8 @@ export function GitPanel({
         id: newID(),
         action,
         params,
-        ...plan,
+        fingerprint: plan.fingerprint,
+        confirmation: plan.confirmation,
       });
       await waitForJob(async () =>
         (await managed<Job[]>("jobs")).find((j) => j.id === job.id),
@@ -186,7 +186,7 @@ export function GitPanel({
               </div>
             }
           >
-            <WaitingSurface busy={busy} message={tr("git.switching")}>
+            <>
               <label>
                 {tr("git.branch")}
                 <select
@@ -206,7 +206,7 @@ export function GitPanel({
               </label>
               {state.dirty && <Notice>{tr("git.dirtyHelp")}</Notice>}
               {failure && <Notice error>{failure}</Notice>}
-            </WaitingSurface>
+            </>
           </DialogContent>
         </Dialog.Portal>
       </Dialog.Root>
