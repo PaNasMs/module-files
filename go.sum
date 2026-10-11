@@ -1,5 +1,7 @@
 github.com/PaNasMs/module-sdk v0.0.0-20261011191018-2415d3ae6495 h1:9+5JdXd6yWWpMTPmHm1/rUA0riU2iWtiBbHbKDcFQVM=
 github.com/PaNasMs/module-sdk v0.0.0-20261011191018-2415d3ae6495/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
+github.com/PaNasMs/module-sdk v0.0.0-20261011195330-c0344c2d9c47 h1:uKuBHRkTi56vFbDyKFugaYHDpu2AiPBaVJNzqku2HmI=
+github.com/PaNasMs/module-sdk v0.0.0-20261011195330-c0344c2d9c47/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
 github.com/msteinert/pam/v2 v2.1.0 h1:er5F9TKV5nGFuTt12ubtqPHEUdeBwReP7vd3wovidGY=
 github.com/msteinert/pam/v2 v2.1.0/go.mod h1:KT28NNIcDFf3PcBmNI2mIGO4zZJ+9RSs/At2PB3IDVc=
 golang.org/x/image v0.46.0 h1:b1+oYj0Jbp6K5MDT4i4/eZpYlk3V8SJhhDKh6LBHAyQ=
