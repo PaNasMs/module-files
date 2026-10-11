@@ -384,5 +384,53 @@
     "en": "too many items; open a subdirectory",
     "ru": "Слишком много объектов; откройте подкаталог",
     "uk": "Забагато об’єктів; відкрийте підкаталог"
+  },
+  {
+    "key": "git.server0",
+    "en": "Repository is busy; wait for synchronization to finish",
+    "ru": "Репозиторий занят. Дождитесь завершения синхронизации.",
+    "uk": "Репозиторій зайнятий. Дочекайтеся завершення синхронізації."
+  },
+  {
+    "key": "git.server1",
+    "en": "Commit or move local changes before switching branches",
+    "ru": "Сохраните коммитом или перенесите локальные изменения перед переключением ветки.",
+    "uk": "Збережіть комітом або перенесіть локальні зміни перед перемиканням гілки."
+  },
+  {
+    "key": "git.server2",
+    "en": "Repository changed; refresh and try again",
+    "ru": "Репозиторий изменился. Обновите сведения и повторите.",
+    "uk": "Репозиторій змінився. Оновіть відомості та повторіть."
+  },
+  {
+    "key": "git.server3",
+    "en": "Linked Git worktrees are not supported yet",
+    "ru": "Связанные рабочие деревья Git пока не поддерживаются.",
+    "uk": "Пов’язані робочі дерева Git поки не підтримуються."
+  },
+  {
+    "key": "git.server4",
+    "en": "Repositories with custom Git filters require the terminal",
+    "ru": "Для репозиториев с пользовательскими Git-фильтрами используйте терминал.",
+    "uk": "Для репозиторіїв із користувацькими Git-фільтрами використовуйте термінал."
+  },
+  {
+    "key": "git.server5",
+    "en": "Repository has no commits yet",
+    "ru": "В репозитории пока нет коммитов.",
+    "uk": "У репозиторії поки немає комітів."
+  },
+  {
+    "key": "git.server6",
+    "en": "Could not switch branch; local files were not forcibly overwritten",
+    "ru": "Не удалось переключить ветку. Принудительная перезапись файлов не выполнялась.",
+    "uk": "Не вдалося перемкнути гілку. Примусове перезаписування файлів не виконувалося."
+  },
+  {
+    "key": "git.server7",
+    "en": "Choose an existing branch",
+    "ru": "Выберите существующую ветку.",
+    "uk": "Виберіть наявну гілку."
   }
 ]

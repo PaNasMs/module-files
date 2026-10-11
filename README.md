@@ -226,3 +226,22 @@ existing release.
 Original code is licensed under
 [Sustainable Use License 1.0](LICENSE). See [NOTICE](NOTICE) for the scope of
 the license and for third-party components.
+
+### Git folders
+
+Local Git repositories have a Git icon. Opening a repository or its subfolder
+shows its current branch and working-tree status. Refresh explicitly to read
+external changes; Git status is not polled in the background. Deleted tracked
+files appear in a separate expandable list because they no longer exist in the
+folder listing.
+
+Switch between existing local branches or downloaded `origin` branches. Local
+changes must be committed or moved first. No force checkout, stash, push, hooks
+or network fetch is performed. Operations run with the signed-in Linux user's
+permissions. Files and Cloud Sync 0.1.32+ coordinate using a nonblocking lock on
+the repository directory; external command-line Git does not take this lock.
+Avoid concurrent terminal operations. Linked worktrees and repositories with
+custom Git filters are not supported by this first revision. Git LFS/submodule
+contents are not downloaded.
+
+Runtime, translation checks and archive packaging are implemented in Go.

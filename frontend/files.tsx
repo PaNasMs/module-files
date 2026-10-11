@@ -9,6 +9,7 @@ import { useQueryValue } from "@panasms/navigation";
 import { useNavigate } from "react-router-dom";
 import { tr, locale } from "./i18n";
 import { FolderPermissions, PermissionsMenuAction } from "./folder-permissions";
+import { useGit, GitPanel, GitStatus } from "./git-folders";
 import { FileVisual } from "./file-visual";
 import {
   deviceVolumes,
@@ -25,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
 type Entry = {
+  git?: boolean;
   name: string;
   path: string;
   directory: boolean;
@@ -125,6 +127,7 @@ export function FilesPage() {
   const anchor = useRef<string | null>(null);
   const deviceView = path.startsWith("device:");
   const cloudView = path.startsWith("cloud:");
+ const git = useGit(path);
   const devicesQuery = useQuery({
     queryKey: ["management-storage", "all"],
     queryFn: () =>
@@ -769,7 +772,7 @@ export function FilesPage() {
               title={tr("refresh_c2f668e5")}
               aria-label={tr("refresh_c2f668e5")}
               onClick={() => {
-                void data.refetch();
+                void data.refetch(); if(path.startsWith("/")) void git.refetch();
                 void locations.refetch();
               }}
             >
@@ -835,6 +838,7 @@ export function FilesPage() {
               <Icon path={mdiPencilOutline} />
             </Button>
           </div>
+          <GitPanel key={path} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
             aria-label={tr("file_actions_90dbb13a")}
@@ -1199,6 +1203,7 @@ export function FilesPage() {
                     >
                       <span className="file-entry-name">
                         <FileVisual entry={e} tiles={view === "grid"} />
+ <GitStatus state={git.data?.git} path={e.path}/>
                         {path === "trash:" && e.original ? (
                           <span className="file-entry-labelled">
                             <span>
@@ -1373,7 +1378,7 @@ export function FilesPage() {
               <Button
                 aria-label={tr("refresh_c2f668e5")}
                 onClick={() => {
-                  void data.refetch();
+                  void data.refetch(); if(path.startsWith("/")) void git.refetch();
                   void locations.refetch();
                   setMenu(null);
                 }}
