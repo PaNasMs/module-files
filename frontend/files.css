@@ -33,4 +33,4 @@
 .file-git-bar strong { overflow-wrap:anywhere; }
 .file-git-status { font-size:0.75rem; color:var(--mute); white-space:nowrap; }
 .file-git-status.git-conflict { color:var(--danger); }
-.file-git-deleted { padding:6px 12px; overflow-wrap:anywhere; }
+.file-git-deleted { margin:0; padding:6px 12px; overflow-wrap:anywhere; }
