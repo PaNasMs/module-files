@@ -164,6 +164,7 @@ export function GitPanel({
             variant="form"
             intent="edit"
             busy={busy}
+            message={tr("git.switching")}
             header={
               <>
                 <Dialog.Title>{tr("git.switch")}</Dialog.Title>
@@ -187,7 +188,7 @@ export function GitPanel({
             }
           >
             <>
-              <label>
+              <label className="field">
                 {tr("git.branch")}
                 <select
                   value={branch}
