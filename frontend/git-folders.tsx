@@ -121,13 +121,15 @@ export function GitPanel({
           {tr(state.dirty ? "git.dirty" : "git.clean")}
         </span>
         <Button
+          aria-label={tr("git.switch")}
+          title={tr("git.switch")}
           onClick={() => {
             setBranch(state.branch);
             setFailure("");
             setOpen(true);
           }}
         >
-          {tr("git.switch")}
+          <Icon path={mdiSourceBranch} />
         </Button>
         <Button
           onClick={refresh}
