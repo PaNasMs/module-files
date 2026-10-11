@@ -15,6 +15,7 @@ import (
 )
 
 type Entry struct {
+	Git       bool    `json:"git,omitempty"`
 	Name      string  `json:"name"`
 	Path      string  `json:"path"`
 	Directory bool    `json:"directory"`
@@ -57,7 +58,15 @@ func List(path string) ([]Entry, uint64, error) {
 		if err != nil {
 			continue
 		}
-		entries = append(entries, Entry{Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
+		git := false
+		if isDir(s) {
+			if child, e := (target{f, name}).open(unix.O_RDONLY|unix.O_DIRECTORY, 0); e == nil {
+				var meta unix.Stat_t
+				git = unix.Fstatat(int(child.Fd()), ".git", &meta, unix.AT_SYMLINK_NOFOLLOW) == nil && meta.Mode&unix.S_IFMT == unix.S_IFDIR
+				child.Close()
+			}
+		}
+		entries = append(entries, Entry{Git: git, Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Directory != entries[j].Directory {

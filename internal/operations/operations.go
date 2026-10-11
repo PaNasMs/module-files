@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PaNasMs/module-files/internal/gitfs"
 	"github.com/PaNasMs/module-files/internal/localfs"
 	"os"
 	"os/exec"
@@ -20,6 +21,8 @@ import (
 var places = Places
 
 type Params struct {
+	Branch          string           `json:"branch"`
+	Expected        string           `json:"expected"`
 	Target          string           `json:"target"`
 	Destination     string           `json:"destination"`
 	ReplaceRevision string           `json:"replace_revision"`
@@ -38,6 +41,7 @@ type Place struct {
 	Network bool   `json:"network,omitempty"`
 }
 type Listing struct {
+	Git        *gitfs.State    `json:"git,omitempty"`
 	Roots      []string        `json:"roots"`
 	Places     []Place         `json:"places"`
 	TrashRoots []string        `json:"trashRoots"`
@@ -100,6 +104,10 @@ func Places(ctx context.Context, owner string) (Listing, error) {
 	return listing, nil
 }
 func Query(ctx context.Context, owner, path string) (Listing, error) {
+	if strings.HasPrefix(path, "git:") {
+		state, err := gitfs.Inspect(ctx, strings.TrimPrefix(path, "git:"))
+		return Listing{Git: state}, err
+	}
 	listing, err := Places(ctx, owner)
 	if err != nil || path == "" {
 		return listing, err
@@ -217,6 +225,14 @@ func Plan(ctx context.Context, owner string, r Request) (map[string]any, error) 
 	p := r.Params
 	state := map[string]string{}
 	switch r.Action {
+	case "file.git-switch":
+		state, err := gitfs.Switch(ctx, p.Target, p.Branch, p.Expected, false)
+		if err != nil {
+			return nil, err
+		}
+		raw, _ := json.Marshal([]any{state, p})
+		sum := sha256.Sum256(raw)
+		return map[string]any{"target": p.Target, "confirmation": p.Target, "fingerprint": hex.EncodeToString(sum[:]), "details": []string{p.Branch}}, nil
 	case "file.mkdir":
 		// Only a successful lookup proves a conflict; an unreadable parent is an access error.
 		if _, err := os.Lstat(p.Target); err == nil {
@@ -269,6 +285,8 @@ func Execute(ctx context.Context, owner string, r Request, engine *localfs.Engin
 	}
 	p := r.Params
 	switch r.Action {
+	case "file.git-switch":
+		return gitfs.Switch(ctx, p.Target, p.Branch, p.Expected, true)
 	case "file.mkdir":
 		return map[string]string{"message": "Folder created"}, localfs.Mkdir(p.Target)
 	case "file.delete":

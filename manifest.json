@@ -2,9 +2,9 @@
   "id": "files",
   "title": "Files",
   "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "api": 1,
-  "core": ">=0.2.15,<0.3.0",
+  "core": ">=0.2.20,<0.3.0",
   "architecture": "arm64",
   "signer": "panasms-ci",
   "service": "bin/server",
@@ -13,7 +13,8 @@
     "util-linux": "2.38",
     "libc6": "2.34",
     "libpam0g": "1.4.0",
-    "rclone": "1.60"
+    "rclone": "1.60",
+    "git": "2.39"
   },
   "actions": [
     "file.mkdir",
@@ -23,7 +24,8 @@
     "file.trash",
     "file.restore",
     "file.delete",
-    "file.permissions"
+    "file.permissions",
+    "file.git-switch"
   ],
   "queries": [
     "files"

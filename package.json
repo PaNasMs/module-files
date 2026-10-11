@@ -1,11 +1,11 @@
 {
   "name": "@panasms/module-files",
   "private": true,
-  "version": "0.3.15",
+  "version": "0.3.16",
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
-    "test": "python3 scripts/check.py && node --test tests/*.test.mjs"
+    "test": "go run ./cmd/devtool check && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

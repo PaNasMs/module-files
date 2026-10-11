@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   mdiFolderOutline,
+  mdiGit,
   mdiFileOutline,
   mdiFileImageOutline,
   mdiFilePdfBox,
@@ -21,6 +22,7 @@ import {
 } from "@mdi/js";
 import { Icon } from "@panasms/ui";
 type FileEntry = {
+ git?: boolean;
   name: string;
   path: string;
   directory: boolean;
@@ -55,9 +57,9 @@ const icons = new Map(
   ),
 );
 const extension = (name: string) => name.toLowerCase().split(".").at(-1) ?? "";
-export const fileIcon = (entry: Pick<FileEntry, "name" | "directory">) =>
+export const fileIcon = (entry: Pick<FileEntry, "name" | "directory" | "git">) =>
   entry.directory
-    ? mdiFolderOutline
+    ? (entry.git ? mdiGit : mdiFolderOutline)
     : (icons.get(extension(entry.name)) ?? mdiFileOutline);
 export const hasThumbnail = (entry: FileEntry) =>
   !entry.directory &&

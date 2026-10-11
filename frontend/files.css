@@ -28,3 +28,9 @@
   overflow-wrap: anywhere;
   text-align: end;
 }
+
+.file-git-bar { display:flex; align-items:center; gap:var(--space-2,8px); flex-wrap:wrap; padding:8px 12px; border-bottom:1px solid var(--line); }
+.file-git-bar strong { overflow-wrap:anywhere; }
+.file-git-status { font-size:0.75rem; color:var(--mute); white-space:nowrap; }
+.file-git-status.git-conflict { color:var(--danger); }
+.file-git-deleted { padding:6px 12px; overflow-wrap:anywhere; }
