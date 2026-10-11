@@ -224,5 +224,5 @@ existing release.
 ## License
 
 Original code is licensed under
-[PaNasMs Source-Available License 1.0](LICENSE). See [NOTICE](NOTICE) for the scope of
+[Sustainable Use License 1.0](LICENSE). See [NOTICE](NOTICE) for the scope of
 the license and for third-party components.
