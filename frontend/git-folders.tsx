@@ -53,10 +53,12 @@ export function GitPanel({
   state,
   error,
   refresh,
+  onSwitched,
 }: {
   state?: GitState;
   error: Error | null;
   refresh: () => void;
+  onSwitched: (root: string) => void;
 }) {
   const [open, setOpen] = useState(false),
     [branch, setBranch] = useState(""),
@@ -103,6 +105,7 @@ export function GitPanel({
       await q.invalidateQueries({ queryKey: ["files"] });
       await q.invalidateQueries({ queryKey: ["files-git"] });
       setOpen(false);
+      onSwitched(state.root);
     } catch (e) {
       setFailure((e as Error).message);
     } finally {

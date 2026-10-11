@@ -838,7 +838,7 @@ export function FilesPage() {
               <Icon path={mdiPencilOutline} />
             </Button>
           </div>
-          <GitPanel key={path} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
+          <GitPanel key={path} onSwitched={setPath} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
             aria-label={tr("file_actions_90dbb13a")}
