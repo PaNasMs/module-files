@@ -1,7 +1,7 @@
 {
   "name": "@panasms/module-files",
   "private": true,
-  "version": "0.3.13",
+  "version": "0.3.14",
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
@@ -39,5 +39,5 @@
     "node": ">=22.12.0",
     "npm": ">=9.5.0"
   },
-  "license": "PolyForm-Noncommercial-1.0.0"
+  "license": "SEE LICENSE IN LICENSE"
 }

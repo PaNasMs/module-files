@@ -224,5 +224,5 @@ existing release.
 ## License
 
 Original code is licensed under
-[PolyForm Noncommercial 1.0.0](LICENSE). See [NOTICE](NOTICE) for the scope of
+[PaNasMs Source-Available License 1.0](LICENSE). See [NOTICE](NOTICE) for the scope of
 the license and for third-party components.
