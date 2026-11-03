@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/PaNasMs/module-files/internal/archiveview"
 	"github.com/PaNasMs/module-files/internal/cloudfs"
@@ -85,6 +86,20 @@ func contentMain() bool {
 		cloud := &archiveview.Store{Client: &cloudfs.Client{Broker: cloudBroker()}}
 		defer cloud.Close()
 		switch mode {
+		case "archive-list":
+			if !cloudfs.IsArchive(path) {
+				os.Exit(1)
+			}
+			listing, listErr := cloud.FolderListing(ctx, path)
+			if listErr != nil {
+				listing = map[string]any{"error": listErr.Error()}
+			}
+			var raw []byte
+			raw, err = json.Marshal(listing)
+			if err == nil {
+				fmt.Fprintf(os.Stdout, "OK %d\n", len(raw))
+				_, err = os.Stdout.Write(raw)
+			}
 		case "link":
 			var link string
 			if link, err = cloud.DirectLink(ctx, path); err == nil {

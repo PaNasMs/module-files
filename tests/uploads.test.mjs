@@ -54,7 +54,7 @@ function setup() {
     exports: module.exports,
     XMLHttpRequest: XHR, URLSearchParams, TextEncoder, setTimeout, clearTimeout,
     require: (name) =>
-      name === "@panasms/layout"
+      name === "./list-folder" ? { listFolder: (path) => managed("files", undefined, path) } : name === "@panasms/layout"
         ? { newID: () => `upload-${++sequence}` }
         : name === "@panasms/operations" ? { managed } : { tr: (key) => key },
     window: {

@@ -219,6 +219,13 @@ func (s *Store) List(ctx context.Context, value string) ([]localfs.Entry, error)
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
 }
+func (s *Store) FolderListing(ctx context.Context, target string) (map[string]any, error) {
+	entries, err := s.List(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"path": target, "entries": entries, "readOnly": s.ReadOnly(ctx, target)}, nil
+}
 func (s *Store) Writable(ctx context.Context, value string) error {
 	if !cloudfs.IsArchive(value) {
 		return nil

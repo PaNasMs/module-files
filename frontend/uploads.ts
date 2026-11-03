@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { newID } from "@panasms/layout";
 import { managed, type Job } from "@panasms/operations";
+import { listFolder } from "./list-folder";
 import { tr } from "./i18n";
 
 // The shell observes this session-local contract, independently of the Files route.
@@ -74,7 +75,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
   });
   async function listing() {
     try {
-      const data = await managed<{ entries: FileItem[] }>("files", undefined, destination);
+      const data = await listFolder<{ entries: FileItem[] }>(destination);
       return data.entries;
     } catch (error) {
       if (restore) throw Error(tr("trash.originalMissing", { folder: destination }));

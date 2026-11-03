@@ -1,3 +1,4 @@
+import { listFolder } from "./list-folder";
 import { enqueueUpload, enqueueFiles, enqueueRestore } from "./uploads";
 import "./files.css";
 import { useCloudPlaces } from "./cloud-places";
@@ -182,7 +183,7 @@ export function FilesPage() {
   const data = useQuery({
     enabled: !deviceView,
     queryKey: ["files", path],
-    queryFn: () => managed<Listing>("files", undefined, path),
+    queryFn: ({ signal }) => listFolder<Listing>(path, signal),
     refetchInterval: cloudView || archive ? false : 10000,
   });
   const locations = useQuery({
@@ -863,7 +864,7 @@ export function FilesPage() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   void resolveAddress(address.trim().replace(/\/+$/, "") || "/",
-                    async folder => (await managed<Listing>("files", undefined, folder)).entries)
+                    async folder => (await listFolder<Listing>(folder)).entries)
                     .then(navigate).catch(e => setError((e as Error).message));
                 }}
               >
@@ -1597,7 +1598,7 @@ function FolderTree({
   }
   const listing = useQuery({
     queryKey: ["files", folder],
-    queryFn: () => managed<Listing>("files", undefined, folder),
+    queryFn: ({ signal }) => listFolder<Listing>(folder, signal),
     enabled: expanded,
     refetchInterval: expanded && !folder.startsWith("arc:") && !folder.startsWith("cloud:") ? 10000 : false,
   });
