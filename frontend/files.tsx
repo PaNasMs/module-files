@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { tr, locale } from "./i18n";
 import { FolderPermissions, PermissionsMenuAction } from "./folder-permissions";
 import { useGit, GitPanel, GitStatus } from "./git-folders";
+import { ArchivePreview, isArchive } from "./archive-preview";
 import { FileVisual } from "./file-visual";
 import {
   deviceVolumes,
@@ -1440,7 +1441,7 @@ export function FilesPage() {
           if (!open) setPreview(null);
         }}
       >
-        {preview && <Preview entry={preview} />}
+        {preview && <Preview key={preview.path} entry={preview} />}
       </Dialog.Root>
     </>
   );
@@ -1674,6 +1675,7 @@ function Preview({ entry }: { entry: Entry }) {
   const [image, setImage] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
+    if (isArchive(entry.name)) return;
     const controller = new AbortController();
     let objectURL: string | undefined;
     setLoading(true);
@@ -1768,7 +1770,7 @@ function Preview({ entry }: { entry: Entry }) {
         intent="inspect"
         dirty={false}
       >
-        {loading ? (
+        {isArchive(entry.name) ? <ArchivePreview path={entry.path} /> : loading ? (
           <p role="status">{tr("loading_b6819e91")}</p>
         ) : error ? (
           <Notice error>{error}</Notice>

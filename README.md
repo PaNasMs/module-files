@@ -6,7 +6,7 @@ mounted devices and linked Google Drive or Dropbox accounts, and runs uploads,
 copies, moves and deletions as background tasks. Project website:
 <https://panasms.github.io/>.
 
-The current version is 0.3.13. It requires PaNasMs core `>=0.2.15,<0.3.0` and
+The current version is 0.3.21. It requires PaNasMs core `>=0.2.20,<0.3.0` and
 module API 1, and is published for ARM64 and AMD64.
 
 ## Install
@@ -22,6 +22,7 @@ an administrator can also upload a signed `.panasms` archive from there.
   cloud accounts and Trash. Removable volumes mount automatically.
 - List and tile views. Tiles show lazy image thumbnails for local files and
   file-type icons for everything else.
+- Open ZIP, RAR, 7z, TAR and gzip/bzip2/xz-compressed TAR archives to browse folders and file sizes without extracting them. Cloud archives are limited to 64 MiB. The viewer accepts up to 3,000 entries within its listing size and processing limits. Encrypted headers require downloading the archive.
 - Upload, download, create, rename, copy, move, trash, restore and permanently
   delete files and folders, including mixed multi-selections with one
   confirmation and per-item error reporting.
@@ -184,7 +185,7 @@ the pinned [module SDK](https://github.com/PaNasMs/module-sdk).
 | `tests/` | Node tests for the background queue |
 
 You need Linux on the target architecture (ARM64 or AMD64), Node.js 24, Go 1.26
-or newer, Python 3, a C compiler and `libpam0g-dev`. CI uses Go 1.27.1. To build:
+or newer, Python 3, a C compiler and the `libpam0g-dev` and `unar` packages. CI uses Go 1.27.1. To build:
 
 ```sh
 sh scripts/build.sh
