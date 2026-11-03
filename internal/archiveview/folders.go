@@ -66,14 +66,18 @@ func (s *Store) load(ctx context.Context, source string) (*folderArchive, error)
 		if e != nil {
 			return nil, e
 		}
-		if item.Size < 0 || item.Size > cloudLimit || item.Directory {
-			return nil, errors.New("Cloud archive exceeds the 64 MiB preview limit")
-		}
 		rev = item.Revision
 		if cloudfs.IsCloud(source) {
-			remote, _ = s.Client.ArchiveRevision(ctx, source, item.ProviderID)
+			if item.Size >= 0 && item.Size <= cloudLimit && !item.Directory {
+				remote, _ = s.Client.ArchiveRevision(ctx, source, item.ProviderID)
+			}
+			f, err = s.Client.OpenArchive(ctx, source, item)
+		} else {
+			if item.Directory || item.Size < 0 || item.Size > cloudLimit {
+				return nil, errLimit
+			}
+			f, _, err = cloudfs.Spool(func(w io.Writer) error { return s.Read(ctx, source, w) }, cloudLimit)
 		}
-		f, _, err = cloudfs.Spool(func(w io.Writer) error { return s.Read(ctx, source, w) }, cloudLimit)
 	} else {
 		rev, err = localfs.Revision(source)
 		if err == nil {
@@ -214,6 +218,13 @@ func (s *Store) List(ctx context.Context, value string) ([]localfs.Entry, error)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result, nil
+}
+func (s *Store) FolderListing(ctx context.Context, target string) (map[string]any, error) {
+	entries, err := s.List(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"path": target, "entries": entries, "readOnly": s.ReadOnly(ctx, target)}, nil
 }
 func (s *Store) Writable(ctx context.Context, value string) error {
 	if !cloudfs.IsArchive(value) {

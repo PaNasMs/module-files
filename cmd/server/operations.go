@@ -22,6 +22,8 @@ import (
 	"time"
 )
 
+const cloudArchiveTimeout = 30 * time.Minute
+
 func operationMain() bool {
 	if len(os.Args) < 2 || os.Args[1] != "operations" && os.Args[1] != "operations-user" {
 		return false
@@ -129,22 +131,21 @@ func operationMain() bool {
 	var value any
 	if mode == "query" && strings.HasPrefix(r.Target, "archive:") {
 		path := strings.TrimPrefix(r.Target, "archive:")
-		ctx, stop := context.WithTimeout(ctx, 30*time.Second)
+		timeout := 30 * time.Second
+		if cloudfs.IsCloud(path) {
+			timeout = cloudArchiveTimeout
+		}
+		ctx, stop := context.WithTimeout(ctx, timeout)
 		defer stop()
 		var file *os.File
 		if cloudfs.IsCloud(path) {
-			const limit = 64 << 20
 			cloud := &cloudfs.Client{Broker: cloudBroker()}
 			item, e := cloud.Stat(ctx, path)
 			if e != nil {
 				reply(nil, e)
 				return true
 			}
-			if item.Directory || item.Size < 0 || item.Size > limit {
-				reply(nil, errors.New("Cloud archive exceeds the 64 MiB preview limit"))
-				return true
-			}
-			file, _, err = cloudfs.Spool(func(w io.Writer) error { return cloud.Read(ctx, path, w) }, limit)
+			file, err = cloud.OpenArchive(ctx, path, item)
 		} else {
 			file, err = localfs.Open(path)
 		}
@@ -184,8 +185,8 @@ func operationMain() bool {
 			return true
 		}
 		if mode == "query" && cloudfs.IsArchive(r.Target) {
-			entries, e := store.List(ctx, r.Target)
-			reply(map[string]any{"path": r.Target, "entries": entries, "readOnly": store.ReadOnly(ctx, r.Target)}, e)
+			value, e := store.FolderListing(ctx, r.Target)
+			reply(value, e)
 			return true
 		}
 		operation := func() (any, error) {

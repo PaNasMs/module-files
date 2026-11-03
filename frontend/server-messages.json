@@ -446,12 +446,6 @@
     "uk": "Архів перевищує обмеження попереднього перегляду. Завантажте його, щоб переглянути всі файли."
   },
   {
-    "key": "archive.cloudLimit",
-    "en": "Cloud archive exceeds the 64 MiB preview limit",
-    "ru": "Для облачных архивов доступен предпросмотр до 64 МиБ.",
-    "uk": "Для хмарних архівів доступний попередній перегляд до 64 МіБ."
-  },
-  {
     "key": "archive.locked",
     "en": "This archive is read-only",
     "ru": "Архив доступен только для чтения",
@@ -510,5 +504,17 @@
     "en": "Cloud archive revision is unavailable",
     "ru": "Не удалось получить версию облачного архива",
     "uk": "Не вдалося отримати версію хмарного архіву"
+  },
+  {
+    "key": "archive.previewSpace",
+    "en": "Not enough temporary space on the NAS to preview this archive",
+    "ru": "На NAS недостаточно временного места для просмотра архива.",
+    "uk": "На NAS недостатньо тимчасового місця для перегляду архіву."
+  },
+  {
+    "key": "archive.previewChanged",
+    "en": "Cloud archive changed while opening it; reopen the archive",
+    "ru": "Облачный архив изменился во время загрузки. Откройте его снова.",
+    "uk": "Хмарний архів змінився під час завантаження. Відкрийте його знову."
   }
 ]

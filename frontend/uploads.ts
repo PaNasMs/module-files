@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { newID } from "@panasms/layout";
 import { managed, type Job } from "@panasms/operations";
+import { listFolder } from "./list-folder";
 import { tr } from "./i18n";
 
 // The shell observes this session-local contract, independently of the Files route.
@@ -44,12 +45,14 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
   q.setQueryDefaults(uploadKey, { gcTime: Infinity, staleTime: Infinity });
   const id = newID();
   let cancelled = false, sessionAlive = true;
+  const listingController = new AbortController();
   let xhr: XMLHttpRequest | undefined;
   let decide: ((choice: Decision) => void) | undefined;
   let preference: Decision["mode"] | undefined = conflict;
   const beforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
   const cancel = () => {
     cancelled = true;
+    listingController.abort();
     window.removeEventListener("beforeunload", beforeUnload);
     xhr?.abort();
     decide?.({ mode: "skip" });
@@ -74,7 +77,7 @@ function enqueue(q: QueryClient, kind: FileAction, items: FileItem[], destinatio
   });
   async function listing() {
     try {
-      const data = await managed<{ entries: FileItem[] }>("files", undefined, destination);
+      const data = await listFolder<{ entries: FileItem[] }>(destination, listingController.signal);
       return data.entries;
     } catch (error) {
       if (restore) throw Error(tr("trash.originalMissing", { folder: destination }));

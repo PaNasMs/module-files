@@ -244,7 +244,7 @@
   "archive.more": "Show more",
   "archive.unreadable": "Archive directory is unreadable, encrypted or incomplete",
   "archive.limit": "Archive exceeds the preview limits",
-  "archive.cloudLimit": "Cloud archive exceeds the 64 MiB preview limit",
+  "archive.expandToCheck": "Expand this archive to check whether you can add files.",
   "archive.readOnly": "This archive is read-only. You can open and copy its contents.",
   "archive.locked": "This archive is read-only",
   "archive.unsafe": "Invalid archive member path",
@@ -258,5 +258,7 @@
   "archive.published": "Archive was updated but the result could not be confirmed. Refresh the folder.",
   "archive.cloudUnknown": "Could not confirm the cloud archive update. Refresh the folder.",
   "archive.cloudRejected": "Cloud archive update was rejected",
-  "archive.cloudRevision": "Cloud archive revision is unavailable"
+  "archive.cloudRevision": "Cloud archive revision is unavailable",
+  "archive.previewSpace": "Not enough temporary space on the NAS to preview this archive",
+  "archive.previewChanged": "Cloud archive changed while opening it; reopen the archive"
 }

@@ -76,7 +76,17 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			}
 		}
 		target := r.URL.Query().Get("target")
-		if strings.HasPrefix(target, "viewer-image:") && mode == "upload" {
+		if strings.HasPrefix(target, "archive-list:") {
+			target = strings.TrimPrefix(target, "archive-list:")
+			if mode != "download" || !cloudfs.IsArchive(target) || len(target) > 8192 {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			mode = "archive-list"
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, cloudArchiveTimeout)
+			defer cancel()
+		} else if strings.HasPrefix(target, "viewer-image:") && mode == "upload" {
 			target = strings.TrimPrefix(target, "viewer-image:")
 			if r.ContentLength <= 0 || r.ContentLength > 48<<20 || r.URL.Query().Get("replace_revision") == "" {
 				w.WriteHeader(400)
@@ -93,7 +103,7 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 				mode = "edit"
 			}
 		}
-		if len(target) > 1024 {
+		if mode != "archive-list" && len(target) > 1024 {
 			w.WriteHeader(400)
 			return
 		}

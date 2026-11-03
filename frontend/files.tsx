@@ -1,3 +1,4 @@
+import { listFolder } from "./list-folder";
 import { enqueueUpload, enqueueFiles, enqueueRestore } from "./uploads";
 import "./files.css";
 import { useCloudPlaces } from "./cloud-places";
@@ -22,7 +23,7 @@ import {
 import { modules, registerModule } from "@panasms/runtime";
 import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiContentPaste, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type DragEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
@@ -162,6 +163,8 @@ export function FilesPage() {
   const dragDepth = useRef(0);
   const uploadInput = useRef<HTMLInputElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
+  const addressRequest = useRef<AbortController | null>(null);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
   const anchor = useRef<string | null>(null);
   const deviceView = path.startsWith("device:");
   const archive = archiveSource(path);
@@ -182,7 +185,7 @@ export function FilesPage() {
   const data = useQuery({
     enabled: !deviceView,
     queryKey: ["files", path],
-    queryFn: () => managed<Listing>("files", undefined, path),
+    queryFn: ({ signal }) => listFolder<Listing>(path, signal),
     refetchInterval: cloudView || archive ? false : 10000,
   });
   const locations = useQuery({
@@ -211,7 +214,7 @@ export function FilesPage() {
   const places = allPlaces.filter((p) => !removablePoints.has(p.path));
   const roots = [...(locations.data?.roots ?? data.data?.roots ?? []), ...cloud.places.map(p => p.path)];
   const physicalPath = displayPath(path);
-  const readOnly = data.data?.readOnly ?? false;
+  const readOnly = !!data.data?.readOnly || (!!archive && !data.isSuccess);
   const root = [...roots]
     .sort((a, b) => b.length - a.length)
     .find((r) => physicalPath === r || physicalPath.startsWith(r.replace(/\/$/, "") + "/"));
@@ -256,7 +259,9 @@ export function FilesPage() {
     if (single) void enterVolume(single);
     else navigate("device:" + device.path);
   }
+  useLayoutEffect(() => () => addressRequest.current?.abort(), [path, viewerFile, preview, editing]);
   function navigate(next: string) {
+    addressRequest.current?.abort();
     if (path !== next || viewerFile) {
       setFolderParams(current => {
         const updated = new URLSearchParams(current);
@@ -729,6 +734,7 @@ export function FilesPage() {
           }
           if ((e.ctrlKey || e.metaKey) && e.key === "l") {
             e.preventDefault();
+            addressRequest.current?.abort();
             setAddress(displayPath(path));
             setEditing(true);
           }
@@ -862,17 +868,28 @@ export function FilesPage() {
                 className="file-address"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  addressRequest.current?.abort();
+                  const request = new AbortController();
+                  addressRequest.current = request;
+                  setResolvingAddress(true);
+                  request.signal.addEventListener("abort", () => setResolvingAddress(false), { once: true });
                   void resolveAddress(address.trim().replace(/\/+$/, "") || "/",
-                    async folder => (await managed<Listing>("files", undefined, folder)).entries)
-                    .then(navigate).catch(e => setError((e as Error).message));
+                    async folder => {
+                      request.signal.throwIfAborted();
+                      return (await listFolder<Listing>(folder, request.signal)).entries;
+                    })
+                    .then(folder => { if (!request.signal.aborted) navigate(folder); })
+                    .catch(e => { if (!request.signal.aborted) setError((e as Error).message); })
+                    .finally(() => { if (addressRequest.current === request) { addressRequest.current = null; setResolvingAddress(false); } });
                 }}
               >
                 <input
                   ref={addressInput}
                   aria-label={tr("folder_path_b03fafe2")}
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => { addressRequest.current?.abort(); setAddress(e.target.value); }}
                 />
+                {resolvingAddress && <span role="status">{tr("loading_b6819e91")}</span>}
               </form>
             ) : (
               <nav
@@ -919,7 +936,7 @@ export function FilesPage() {
               <Icon path={mdiPencilOutline} />
             </Button>
           </div>
-          {readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
+          {data.data?.readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
           <GitPanel key={path} onSwitched={navigate} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
@@ -1597,10 +1614,17 @@ function FolderTree({
   }
   const listing = useQuery({
     queryKey: ["files", folder],
-    queryFn: () => managed<Listing>("files", undefined, folder),
+    queryFn: ({ signal }) => listFolder<Listing>(folder, signal),
     enabled: expanded,
+    subscribed: expanded,
     refetchInterval: expanded && !folder.startsWith("arc:") && !folder.startsWith("cloud:") ? 10000 : false,
   });
+  const reasonId = useId();
+  const archiveDestination = writableOnly && folder.startsWith("arc:");
+  const destinationReason = !archiveDestination ? "" :
+    rarFolder(folder) || listing.data?.readOnly ? tr("archive.readOnly") :
+    !listing.isSuccess ? (expanded ? listing.error?.message || tr("loading_b6819e91") : tr("archive.expandToCheck")) : "";
+  const branchExplainsReason = !!destinationReason && expanded && !rarFolder(folder) && !listing.data?.readOnly && !listing.isSuccess;
   const children = (listing.data?.entries ?? [])
     .filter(
       (e) => !!folderTarget(e) && (hidden || !e.name.startsWith(".")),
@@ -1626,7 +1650,8 @@ function FolderTree({
           className="file-tree-link"
           title={folder}
           aria-current={current === folder ? "page" : undefined}
-          disabled={busy || (writableOnly && (rarFolder(folder) || listing.data?.readOnly))}
+          aria-describedby={destinationReason ? reasonId : undefined}
+          disabled={busy || !!destinationReason || (writableOnly && listing.data?.readOnly)}
           onClick={() => void activate(false)}
         >
           <Icon path={icon} />
@@ -1634,14 +1659,15 @@ function FolderTree({
         </button>
         {onUnpin && <button className="file-pin-remove" title={tr("pins.remove")} aria-label={tr("pins.remove") + ": " + label} disabled={unpinDisabled} onClick={onUnpin}><Icon path={mdiPinOffOutline} /></button>}
       </div>
+      {destinationReason && !branchExplainsReason && <p id={reasonId} className="file-tree-message">{destinationReason}</p>}
       {busy && <p className="file-tree-message">{tr("connecting_40b27edf")}</p>}
       {failure && <p className="file-tree-message error-text">{failure}</p>}
       {expanded && (
         <ul className="file-tree-children">
           {listing.isPending ? (
-            <li className="file-tree-message">{tr("loading_b6819e91")}</li>
+            <li id={branchExplainsReason ? reasonId : undefined} className="file-tree-message">{tr("loading_b6819e91")}</li>
           ) : listing.error ? (
-            <li className="file-tree-message error-text">
+            <li id={branchExplainsReason ? reasonId : undefined} className="file-tree-message error-text">
               {listing.error.message}
               <button
                 title={tr("retry_9e506acb")}
