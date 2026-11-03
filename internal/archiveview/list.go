@@ -1,6 +1,7 @@
 package archiveview
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -59,6 +60,14 @@ func List(ctx context.Context, file *os.File, name string) ([]Entry, error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	args := []string{"--as=402653184", "--cpu=10", "--core=0", "--fsize=0", "--", "/usr/bin/lsar", "-j"}
+	// Recent lsar versions can omit repeated solid RAR metadata. Older
+	// distributions reject that flag, even for ordinary ZIP archives.
+	if ext == ".rar" {
+		help, err := exec.CommandContext(ctx, "/usr/bin/lsar", "-h").Output()
+		if err == nil && bytes.Contains(help, []byte("(-jss)")) {
+			args = append(args, "-jss")
+		}
+	}
 	if !strings.HasPrefix(ext, ".tar.") {
 		args = append(args, "-nr")
 	}
