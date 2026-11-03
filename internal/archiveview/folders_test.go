@@ -117,3 +117,36 @@ func TestFolderBatchPublishesOnlyAfterAllMembersSucceed(t *testing.T) {
 		t.Fatal("cancelled edit visible", err)
 	}
 }
+
+func TestPrivateStagingRemovedAfterReadOnlyFolderCopy(t *testing.T) {
+	_, root := zipFolder(t, map[string]string{"src/file": "hello"})
+	temp := t.TempDir()
+	t.Setenv("TMPDIR", temp)
+	ctx := context.Background()
+	s := &Store{}
+	defer s.Close()
+	_, err := s.Within(ctx, root+"/src", root+"/dst", func() (any, error) {
+		if e := s.Mkdir(ctx, root+"/dst"); e != nil {
+			return nil, e
+		}
+		if e := s.Upload(ctx, root+"/dst/file", bytes.NewBufferString("hello"), 5, ""); e != nil {
+			return nil, e
+		}
+		a, _, e := s.archive(ctx, root)
+		if e != nil {
+			return nil, e
+		}
+		entry := a.entries["dst"]
+		mode := 0555
+		entry.Mode = &mode
+		a.entries["dst"] = entry
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items, err := os.ReadDir(temp)
+	if err != nil || len(items) != 0 {
+		t.Fatalf("staging left behind: %v %v", items, err)
+	}
+}

@@ -55,6 +55,11 @@ func ReplaceArchive(ctx context.Context, path, expected string, data *os.File) e
 	if err = f.Chown(-1, int(st.Gid)); err != nil {
 		return err
 	}
+	// The staging directory may inherit a default ACL from the archive's
+	// parent. Restore only the original file's access ACL.
+	if err = unix.Fremovexattr(int(f.Fd()), "system.posix_acl_access"); err != nil && !errors.Is(err, unix.ENODATA) && !errors.Is(err, unix.ENOTSUP) {
+		return err
+	}
 	if err = metadata(original, f, st); err != nil {
 		return err
 	}

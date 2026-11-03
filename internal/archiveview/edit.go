@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -152,6 +153,8 @@ func (s *Store) commit(ctx context.Context, a *folderArchive, b *batch) error {
 	if err != nil {
 		return err
 	}
+	// Apply directory modes last and restore parent access first on return.
+	sort.Sort(sort.Reverse(sort.StringSlice(added)))
 	for _, name := range added {
 		entry := a.entries[name]
 		staged := filepath.Join(b.tree, name)
@@ -162,6 +165,9 @@ func (s *Store) commit(ctx context.Context, a *folderArchive, b *batch) error {
 			}
 		}
 		if entry.Mode != nil {
+			if entry.Directory {
+				defer os.Chmod(staged, 0700)
+			}
 			if err = os.Chmod(staged, os.FileMode(*entry.Mode&0777)); err != nil {
 				return err
 			}
