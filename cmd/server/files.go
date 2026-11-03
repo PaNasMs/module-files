@@ -76,6 +76,16 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			}
 		}
 		target := r.URL.Query().Get("target")
+		if strings.HasPrefix(target, "viewer:") {
+			target = strings.TrimPrefix(target, "viewer:")
+			if mode == "upload" {
+				if r.ContentLength < 0 || r.ContentLength > 4<<20 || r.URL.Query().Get("replace_revision") == "" {
+					w.WriteHeader(400)
+					return
+				}
+				mode = "edit"
+			}
+		}
 		if len(target) > 1024 {
 			w.WriteHeader(400)
 			return
@@ -100,7 +110,7 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 		cmd := exec.CommandContext(ctx, "/usr/bin/nsenter", "--mount=/proc/1/ns/mnt", "--", executable, "content", mode, id.Username, target, strconv.FormatInt(r.ContentLength, 10), r.URL.Query().Get("replace_revision"))
 		cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 		cmd.WaitDelay = 5 * time.Second
-		if mode == "upload" {
+		if mode == "upload" || mode == "edit" {
 			if r.ContentLength < 0 {
 				w.WriteHeader(411)
 				return

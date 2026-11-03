@@ -1,4 +1,6 @@
 {
+  "viewer.unavailable": "Файл або його переглядач недоступний.",
+  "viewer.back": "Повернутися до теки",
   "thumbnail_unavailable_7e25dc75": "Мініатюра недоступна",
   "check_permissions_and_ensure_the_file_name_is_not__5eb4d1e2": "Перевірте права та відсутність файла з таким ім’ям",
   "transfer_interrupted_74125ab8": "Передавання перервано",

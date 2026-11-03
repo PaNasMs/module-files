@@ -19,7 +19,7 @@ import {
   volumeMountParams,
   type Removable,
 } from "@panasms/removable";
-import { registerModule } from "@panasms/runtime";
+import { modules, registerModule } from "@panasms/runtime";
 import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiContentPaste, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type DragEvent } from "react";
@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
 type Entry = {
+  revision?: string;
   git?: boolean;
   name: string;
   path: string;
@@ -99,6 +100,7 @@ export function FilesPage() {
     "modified",
   ]);
   const [preview, setPreview] = useState<Entry | null>(null);
+  const [viewerFile, setViewerFile] = useQueryValue("file");
   const [view, setView] = useQueryValue("view", "list", ["list", "grid"]);
   const [hiddenValue, setHiddenValue] = useQueryValue("hidden", "0", [
     "0",
@@ -304,10 +306,18 @@ export function FilesPage() {
     else setSelection([e.path]);
     anchor.current = e.path;
   }
+  type Contribution = { fileViewer?: {
+    accepts: (name: string) => boolean;
+    component: import("react").ComponentType<{entry: Entry; siblings: Entry[]; readOnly: boolean; open: (e: Entry) => void; close: () => void; saved: () => void}>;
+  }};
+  const handlers = modules().flatMap(m => (m as Contribution).fileViewer ?? []);
+  const viewed = entries.find(e => e.path === viewerFile && !e.directory && !e.link);
+  const Viewer = viewed && handlers.find(h => h.accepts(viewed.name))?.component;
   function open(e: Entry) {
     if (e.link) return;
     const folder = folderTarget(e);
     if (folder) navigate(folder);
+    else if (handlers.some(h => h.accepts(e.name))) { setSelection([e.path]); setViewerFile(e.path); }
     else setPreview(e);
   }
   const canUpload =
@@ -532,6 +542,8 @@ export function FilesPage() {
     return [root, ...parts.map((_, i) => root.replace(/\/$/, "") + "/" + parts.slice(0,i+1).join("/"))];
   }
   const crumbPaths = breadcrumbs(path);
+  if (viewerFile && viewed && Viewer) return <Viewer key={viewed.path} entry={viewed} siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)} open={open} close={() => setViewerFile("")} saved={() => { void q.invalidateQueries({queryKey: ["files", path]}); setViewerFile(""); }} />;
+  if (viewerFile) return <div className="panel" role="status">{tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
   return (
     <>
       {deleting && (

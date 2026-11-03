@@ -1,4 +1,6 @@
 {
+  "viewer.unavailable": "The file or its viewer is unavailable.",
+  "viewer.back": "Back to folder",
   "thumbnail_unavailable_7e25dc75": "Thumbnail unavailable",
   "check_permissions_and_ensure_the_file_name_is_not__5eb4d1e2": "Check permissions and ensure the file name is not already in use",
   "transfer_interrupted_74125ab8": "Transfer interrupted",
