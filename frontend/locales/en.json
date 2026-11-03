@@ -244,6 +244,7 @@
   "archive.more": "Show more",
   "archive.unreadable": "Archive directory is unreadable, encrypted or incomplete",
   "archive.limit": "Archive exceeds the preview limits",
+  "archive.expandToCheck": "Expand this archive to check whether you can add files.",
   "archive.readOnly": "This archive is read-only. You can open and copy its contents.",
   "archive.locked": "This archive is read-only",
   "archive.unsafe": "Invalid archive member path",

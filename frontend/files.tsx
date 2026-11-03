@@ -23,7 +23,7 @@ import {
 import { modules, registerModule } from "@panasms/runtime";
 import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiContentPaste, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type DragEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
@@ -214,7 +214,7 @@ export function FilesPage() {
   const places = allPlaces.filter((p) => !removablePoints.has(p.path));
   const roots = [...(locations.data?.roots ?? data.data?.roots ?? []), ...cloud.places.map(p => p.path)];
   const physicalPath = displayPath(path);
-  const readOnly = data.data?.readOnly ?? false;
+  const readOnly = !!data.data?.readOnly || (!!archive && !data.isSuccess);
   const root = [...roots]
     .sort((a, b) => b.length - a.length)
     .find((r) => physicalPath === r || physicalPath.startsWith(r.replace(/\/$/, "") + "/"));
@@ -936,7 +936,7 @@ export function FilesPage() {
               <Icon path={mdiPencilOutline} />
             </Button>
           </div>
-          {readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
+          {data.data?.readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
           <GitPanel key={path} onSwitched={navigate} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
@@ -1619,6 +1619,12 @@ function FolderTree({
     subscribed: expanded,
     refetchInterval: expanded && !folder.startsWith("arc:") && !folder.startsWith("cloud:") ? 10000 : false,
   });
+  const reasonId = useId();
+  const archiveDestination = writableOnly && folder.startsWith("arc:");
+  const destinationReason = !archiveDestination ? "" :
+    rarFolder(folder) || listing.data?.readOnly ? tr("archive.readOnly") :
+    !listing.isSuccess ? (expanded ? listing.error?.message || tr("loading_b6819e91") : tr("archive.expandToCheck")) : "";
+  const branchExplainsReason = !!destinationReason && expanded && !rarFolder(folder) && !listing.data?.readOnly && !listing.isSuccess;
   const children = (listing.data?.entries ?? [])
     .filter(
       (e) => !!folderTarget(e) && (hidden || !e.name.startsWith(".")),
@@ -1644,7 +1650,8 @@ function FolderTree({
           className="file-tree-link"
           title={folder}
           aria-current={current === folder ? "page" : undefined}
-          disabled={busy || (writableOnly && (rarFolder(folder) || (folder.startsWith("arc:") && !listing.isSuccess) || listing.data?.readOnly))}
+          aria-describedby={destinationReason ? reasonId : undefined}
+          disabled={busy || !!destinationReason || (writableOnly && listing.data?.readOnly)}
           onClick={() => void activate(false)}
         >
           <Icon path={icon} />
@@ -1652,14 +1659,15 @@ function FolderTree({
         </button>
         {onUnpin && <button className="file-pin-remove" title={tr("pins.remove")} aria-label={tr("pins.remove") + ": " + label} disabled={unpinDisabled} onClick={onUnpin}><Icon path={mdiPinOffOutline} /></button>}
       </div>
+      {destinationReason && !branchExplainsReason && <p id={reasonId} className="file-tree-message">{destinationReason}</p>}
       {busy && <p className="file-tree-message">{tr("connecting_40b27edf")}</p>}
       {failure && <p className="file-tree-message error-text">{failure}</p>}
       {expanded && (
         <ul className="file-tree-children">
           {listing.isPending ? (
-            <li className="file-tree-message">{tr("loading_b6819e91")}</li>
+            <li id={branchExplainsReason ? reasonId : undefined} className="file-tree-message">{tr("loading_b6819e91")}</li>
           ) : listing.error ? (
-            <li className="file-tree-message error-text">
+            <li id={branchExplainsReason ? reasonId : undefined} className="file-tree-message error-text">
               {listing.error.message}
               <button
                 title={tr("retry_9e506acb")}
