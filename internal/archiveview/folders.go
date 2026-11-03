@@ -30,6 +30,7 @@ type Store struct {
 	opened map[string]*folderArchive
 }
 type folderArchive struct {
+	remoteVersion              *cloudfs.ArchiveRevision
 	pending                    *batch
 	tarPath                    string
 	file                       *os.File
@@ -58,6 +59,7 @@ func (s *Store) Close() {
 func (s *Store) load(ctx context.Context, source string) (*folderArchive, error) {
 	var f *os.File
 	var rev string
+	var remote *cloudfs.ArchiveRevision
 	var err error
 	if cloudfs.IsRemote(source) {
 		item, e := s.Stat(ctx, source)
@@ -68,6 +70,9 @@ func (s *Store) load(ctx context.Context, source string) (*folderArchive, error)
 			return nil, errors.New("Cloud archive exceeds the 64 MiB preview limit")
 		}
 		rev = item.Revision
+		if cloudfs.IsCloud(source) {
+			remote, _ = s.Client.ArchiveRevision(ctx, source, item.ProviderID)
+		}
 		f, _, err = cloudfs.Spool(func(w io.Writer) error { return s.Read(ctx, source, w) }, cloudLimit)
 	} else {
 		rev, err = localfs.Revision(source)
@@ -78,10 +83,13 @@ func (s *Store) load(ctx context.Context, source string) (*folderArchive, error)
 	if err != nil {
 		return nil, err
 	}
-	a := &folderArchive{file: f, source: source, revision: rev, baseline: rev}
+	a := &folderArchive{remoteVersion: remote, file: f, source: source, revision: rev, baseline: rev}
 	if err = a.index(ctx); err != nil {
 		f.Close()
 		return nil, err
+	}
+	if cloudfs.IsCloud(source) && remote == nil {
+		a.readonly = true
 	}
 	if !cloudfs.IsRemote(source) {
 		info, e := f.Stat()

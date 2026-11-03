@@ -15,15 +15,16 @@ import (
 )
 
 type Entry struct {
-	Mode      *int    `json:"-"`
-	Git       bool    `json:"git,omitempty"`
-	Name      string  `json:"name"`
-	Path      string  `json:"path"`
-	Directory bool    `json:"directory"`
-	Link      bool    `json:"link"`
-	Size      int64   `json:"size"`
-	Modified  float64 `json:"modified"`
-	Revision  string  `json:"revision"`
+	ProviderID string  `json:"-"`
+	Mode       *int    `json:"-"`
+	Git        bool    `json:"git,omitempty"`
+	Name       string  `json:"name"`
+	Path       string  `json:"path"`
+	Directory  bool    `json:"directory"`
+	Link       bool    `json:"link"`
+	Size       int64   `json:"size"`
+	Modified   float64 `json:"modified"`
+	Revision   string  `json:"revision"`
 	// Set only for items in the trash, when known.
 	Original string  `json:"original,omitempty"`
 	Deleted  float64 `json:"deleted,omitempty"`

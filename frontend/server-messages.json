@@ -492,5 +492,23 @@
     "en": "Archive was updated but the result could not be confirmed. Refresh the folder.",
     "ru": "Архив был обновлён, но проверить результат не удалось. Обновите папку.",
     "uk": "Архів оновлено, але перевірити результат не вдалося. Оновіть теку."
+  },
+  {
+    "key": "archive.cloudUnknown",
+    "en": "Could not confirm the cloud archive update. Refresh the folder.",
+    "ru": "Не удалось подтвердить обновление облачного архива. Обновите папку.",
+    "uk": "Не вдалося підтвердити оновлення хмарного архіву. Оновіть теку."
+  },
+  {
+    "key": "archive.cloudRejected",
+    "en": "Cloud archive update was rejected",
+    "ru": "Облачный сервис отклонил обновление архива",
+    "uk": "Хмарний сервіс відхилив оновлення архіву"
+  },
+  {
+    "key": "archive.cloudRevision",
+    "en": "Cloud archive revision is unavailable",
+    "ru": "Не удалось получить версию облачного архива",
+    "uk": "Не вдалося отримати версію хмарного архіву"
   }
 ]

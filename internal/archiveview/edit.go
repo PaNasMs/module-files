@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/PaNasMs/module-files/internal/cloudfs"
 	"github.com/PaNasMs/module-files/internal/localfs"
-	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"os/exec"
@@ -281,18 +280,15 @@ func (s *Store) commit(ctx context.Context, a *folderArchive, b *batch) error {
 			return errLimit
 		}
 		if cloudfs.IsCloud(a.source) {
-			lock, e := cloudWriteLock()
-			if e != nil {
-				return e
-			}
-			defer lock.Close()
+			err = s.Client.ReplaceArchive(ctx, a.source, a.revision, a.remoteVersion, f, info.Size())
+		} else {
+			err = s.Upload(ctx, a.source, f, info.Size(), a.revision)
 		}
-		err = s.Upload(ctx, a.source, f, info.Size(), a.revision)
 	} else {
 		err = localfs.ReplaceArchive(ctx, a.source, a.revision, f)
 	}
 	if err != nil {
-		if errors.Is(err, localfs.ErrArchivePublished) {
+		if errors.Is(err, localfs.ErrArchivePublished) || errors.Is(err, cloudfs.ErrArchiveUnconfirmed) {
 			a.file.Close()
 			delete(s.opened, a.source)
 		}
@@ -345,28 +341,4 @@ func sameContents(a, b *os.File) (bool, error) {
 	}
 	second, err := digest(b)
 	return first == second, err
-}
-
-// Serialize the final cloud revision check and upload among this user's Files
-// workers. The cloud provider also checks the destination before publishing.
-func cloudWriteLock() (*os.File, error) {
-	p := filepath.Join(os.TempDir(), fmt.Sprintf("panasms-archive-lock-%d", os.Geteuid()))
-	if err := os.Mkdir(p, 0700); err != nil && !os.IsExist(err) {
-		return nil, err
-	}
-	fd, err := unix.Open(p, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return nil, err
-	}
-	f := os.NewFile(uintptr(fd), p)
-	var st unix.Stat_t
-	if err = unix.Fstat(fd, &st); err != nil || st.Uid != uint32(os.Geteuid()) || st.Mode&0777 != 0700 {
-		f.Close()
-		return nil, os.ErrPermission
-	}
-	if err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		f.Close()
-		return nil, err
-	}
-	return f, nil
 }

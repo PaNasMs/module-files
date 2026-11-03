@@ -253,5 +253,8 @@
   "archive.copy": "Copy",
   "archive.cut": "Cut",
   "archive.paste": "Paste",
-  "archive.published": "Archive was updated but the result could not be confirmed. Refresh the folder."
+  "archive.published": "Archive was updated but the result could not be confirmed. Refresh the folder.",
+  "archive.cloudUnknown": "Could not confirm the cloud archive update. Refresh the folder.",
+  "archive.cloudRejected": "Cloud archive update was rejected",
+  "archive.cloudRevision": "Cloud archive revision is unavailable"
 }

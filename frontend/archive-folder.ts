@@ -1,8 +1,9 @@
 const archiveName = /\.(zip|rar|7z|tar|tgz|tbz2|txz|tar\.(gz|bz2|xz))$/i;
+const archiveRoot = (path: string) => "arc:" + encodeURIComponent(path).replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 export function folderTarget(entry: {name: string; path: string; directory: boolean; link: boolean}) {
   if (entry.link) return undefined;
   if (entry.directory) return entry.path;
-  if (archiveName.test(entry.name)) return "arc:" + encodeURIComponent(entry.path).replace(/[!'()*]/g, c => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+  if (archiveName.test(entry.name)) return archiveRoot(entry.path);
 }
 export function archiveSource(path: string) {
   if (!path.startsWith("arc:")) return "";
@@ -26,8 +27,13 @@ export async function resolveAddress(value: string, list: (folder: string) => Pr
   for (const name of parts.filter(Boolean)) {
     const next = folder.replace(/\/$/, "") + "/" + name;
     if (archiveName.test(name)) {
-      const entry = (await list(folder).catch(() => [])).find(e => e.name === name);
-      folder = entry && folderTarget(entry) || next;
+      try {
+        const entry = (await list(folder)).find(e => e.name === name);
+        folder = entry && folderTarget(entry) || next;
+      } catch {
+        const candidate = archiveRoot(next);
+        folder = await list(candidate).then(() => candidate, () => next);
+      }
     } else folder = next;
   }
   return folder;
