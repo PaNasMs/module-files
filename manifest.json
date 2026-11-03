@@ -2,7 +2,7 @@
   "id": "files",
   "title": "Files",
   "description": "File manager: device and folder tree, uploads, moves, trash and thumbnails.",
-  "version": "0.3.21",
+  "version": "0.3.22",
   "api": 1,
   "core": ">=0.2.20,<0.3.0",
   "architecture": "arm64",
@@ -15,7 +15,12 @@
     "libpam0g": "1.4.0",
     "rclone": "1.60",
     "git": "2.39",
-    "unar": "1.10"
+    "unar": "1.10",
+    "7zip": "22",
+    "tar": "1.30",
+    "xz-utils": "5",
+    "bzip2": "1",
+    "gzip": "1"
   },
   "actions": [
     "file.mkdir",

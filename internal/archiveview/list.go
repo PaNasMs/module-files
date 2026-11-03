@@ -18,9 +18,14 @@ var errUnreadable = errors.New("Archive directory is unreadable, encrypted or in
 var errLimit = errors.New("Archive exceeds the preview limits")
 
 type Entry struct {
-	Name      string `json:"name"`
-	Directory bool   `json:"directory,omitempty"`
-	Size      *int64 `json:"size,omitempty"`
+	Mode      *int    `json:"-"`
+	Name      string  `json:"name"`
+	Index     int     `json:"-"`
+	Link      bool    `json:"-"`
+	Encrypted bool    `json:"-"`
+	Modified  float64 `json:"-"`
+	Directory bool    `json:"directory,omitempty"`
+	Size      *int64  `json:"size,omitempty"`
 }
 
 func suffix(name string) string {
@@ -99,6 +104,12 @@ func List(ctx context.Context, file *os.File, name string) ([]Entry, error) {
 		Inner    string `json:"lsarInnerFormatName"`
 		Error    *int   `json:"lsarError"`
 		Contents []struct {
+			Index     int    `json:"XADIndex"`
+			Link      int    `json:"XADIsLink"`
+			Hardlink  int    `json:"XADIsHardLink"`
+			Encrypted int    `json:"XADIsEncrypted"`
+			Date      string `json:"XADLastModificationDate"`
+			Mode      *int   `json:"XADPosixPermissions"`
 			Name      string `json:"XADFileName"`
 			Directory int    `json:"XADIsDirectory"`
 			Size      *int64 `json:"XADFileSize"`
@@ -121,7 +132,16 @@ func List(ctx context.Context, file *os.File, name string) ([]Entry, error) {
 		if nameBytes > 256<<10 {
 			return nil, errLimit
 		}
-		entries = append(entries, Entry{row.Name, row.Directory != 0, row.Size})
+		date, _ := time.Parse("2006-01-02 15:04:05 -0700", row.Date)
+		var modified float64
+		if !date.IsZero() {
+			modified = float64(date.Unix())
+		}
+		kind := 0
+		if row.Mode != nil {
+			kind = *row.Mode & syscall.S_IFMT
+		}
+		entries = append(entries, Entry{Mode: row.Mode, Name: row.Name, Directory: row.Directory != 0, Size: row.Size, Index: row.Index, Link: row.Link != 0 || row.Hardlink != 0 || kind != 0 && kind != syscall.S_IFREG && kind != syscall.S_IFDIR, Modified: modified, Encrypted: row.Encrypted != 0})
 	}
 	return entries, nil
 }

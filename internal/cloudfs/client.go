@@ -166,7 +166,7 @@ func (c *Client) List(ctx context.Context, value string) ([]localfs.Entry, error
 		seen[r.Name] = true
 		raw, _ := json.Marshal(r)
 		hash := sha256.Sum256(raw)
-		result = append(result, localfs.Entry{Name: r.Name, Path: Join(value, r.Name), Directory: r.IsDir, Size: r.Size, Modified: float64(r.ModTime.Unix()), Revision: hex.EncodeToString(hash[:])})
+		result = append(result, localfs.Entry{ProviderID: r.ID, Name: r.Name, Path: Join(value, r.Name), Directory: r.IsDir, Size: r.Size, Modified: float64(r.ModTime.Unix()), Revision: hex.EncodeToString(hash[:])})
 	}
 	return result, nil
 }

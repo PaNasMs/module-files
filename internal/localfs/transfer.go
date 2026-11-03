@@ -601,3 +601,25 @@ func metadata(source, destination *os.File, s unix.Stat_t) error {
 	}
 	return unix.UtimesNanoAt(int(destination.Fd()), "", []unix.Timespec{s.Atim, s.Mtim}, unix.AT_EMPTY_PATH)
 }
+
+// A remote move may only unlink the verified file or an empty directory.
+func RemoveTransferSource(value string, directory bool, expected string) error {
+	t, err := resolve(value)
+	if err != nil {
+		return err
+	}
+	defer t.close()
+	flags := 0
+	if directory {
+		flags = unix.AT_REMOVEDIR
+	} else {
+		st, err := t.stat()
+		if err != nil {
+			return err
+		}
+		if !regular(st) || revision(st) != expected {
+			return errors.New("source changed; both copies preserved")
+		}
+	}
+	return unix.Unlinkat(int(t.parent.Fd()), t.name, flags)
+}

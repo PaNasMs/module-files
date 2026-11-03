@@ -15,14 +15,16 @@ import (
 )
 
 type Entry struct {
-	Git       bool    `json:"git,omitempty"`
-	Name      string  `json:"name"`
-	Path      string  `json:"path"`
-	Directory bool    `json:"directory"`
-	Link      bool    `json:"link"`
-	Size      int64   `json:"size"`
-	Modified  float64 `json:"modified"`
-	Revision  string  `json:"revision"`
+	ProviderID string  `json:"-"`
+	Mode       *int    `json:"-"`
+	Git        bool    `json:"git,omitempty"`
+	Name       string  `json:"name"`
+	Path       string  `json:"path"`
+	Directory  bool    `json:"directory"`
+	Link       bool    `json:"link"`
+	Size       int64   `json:"size"`
+	Modified   float64 `json:"modified"`
+	Revision   string  `json:"revision"`
 	// Set only for items in the trash, when known.
 	Original string  `json:"original,omitempty"`
 	Deleted  float64 `json:"deleted,omitempty"`
@@ -66,7 +68,8 @@ func List(path string) ([]Entry, uint64, error) {
 				child.Close()
 			}
 		}
-		entries = append(entries, Entry{Git: git, Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
+		mode := int(s.Mode & 0777)
+		entries = append(entries, Entry{Mode: &mode, Git: git, Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Directory != entries[j].Directory {

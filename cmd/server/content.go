@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/PaNasMs/module-files/internal/archiveview"
 	"github.com/PaNasMs/module-files/internal/cloudfs"
 	"github.com/PaNasMs/module-files/internal/localfs"
 	"io"
@@ -53,7 +54,7 @@ func contentMain() bool {
 			ids = append(ids, uint32(n))
 		}
 		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid), Groups: ids}, Pdeathsig: syscall.SIGTERM}
-		if cloudfs.IsCloud(path) {
+		if cloudfs.IsRemote(path) {
 			channel, e := grantChannel(owner)
 			if e != nil {
 				os.Exit(1)
@@ -80,8 +81,9 @@ func contentMain() bool {
 	// chunk and remove its staging directory instead of leaving it behind.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	if cloudfs.IsCloud(path) {
-		cloud := &cloudfs.Client{Broker: cloudBroker()}
+	if cloudfs.IsRemote(path) {
+		cloud := &archiveview.Store{Client: &cloudfs.Client{Broker: cloudBroker()}}
+		defer cloud.Close()
 		switch mode {
 		case "link":
 			var link string

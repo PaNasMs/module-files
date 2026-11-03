@@ -16,8 +16,22 @@ import (
 	"time"
 )
 
+type Store interface {
+	List(context.Context, string) ([]localfs.Entry, error)
+	Stat(context.Context, string) (localfs.Entry, error)
+	Read(context.Context, string, io.Writer) error
+	Write(context.Context, string, io.Reader, int64) error
+	Upload(context.Context, string, io.Reader, int64, string) error
+	Mkdir(context.Context, string) error
+	Delete(context.Context, string, bool) error
+	Publish(context.Context, string, string) error
+}
+
+func IsArchive(value string) bool { return strings.HasPrefix(value, "arc:") }
+func IsRemote(value string) bool  { return IsCloud(value) || IsArchive(value) }
+
 type Transfer struct {
-	Cloud            *Client
+	Cloud            Store
 	Local            *localfs.Engine
 	Progress         func(float64)
 	total, completed int64
@@ -26,14 +40,14 @@ type Transfer struct {
 }
 
 func (t *Transfer) List(ctx context.Context, folder string) ([]localfs.Entry, error) {
-	if IsCloud(folder) {
+	if IsRemote(folder) {
 		return t.Cloud.List(ctx, folder)
 	}
 	entries, _, err := localfs.List(folder)
 	return entries, err
 }
 func (t *Transfer) Stat(ctx context.Context, value string) (localfs.Entry, error) {
-	if IsCloud(value) {
+	if IsRemote(value) {
 		return t.Cloud.Stat(ctx, value)
 	}
 	entries, _, err := localfs.List(filepath.Dir(value))
@@ -48,27 +62,28 @@ func (t *Transfer) Stat(ctx context.Context, value string) (localfs.Entry, error
 	return localfs.Entry{}, os.ErrNotExist
 }
 func (t *Transfer) read(ctx context.Context, value string, out io.Writer) error {
-	if IsCloud(value) {
+	if IsRemote(value) {
 		return t.Cloud.Read(ctx, value, out)
 	}
 	return localfs.Download(value, out)
 }
-func (t *Transfer) mkdir(ctx context.Context, value string) error {
-	if IsCloud(value) {
+func (t *Transfer) mkdir(ctx context.Context, value string, src localfs.Entry) error {
+	if IsArchive(value) {
+		return t.putMember(ctx, value, nil, src, "")
+	}
+	if IsRemote(value) {
 		return t.Cloud.Mkdir(ctx, value)
 	}
 	return localfs.Mkdir(value)
 }
-func (t *Transfer) remove(ctx context.Context, value string, directory bool) error {
-	if IsCloud(value) {
+func (t *Transfer) remove(ctx context.Context, value string, directory bool, revision string) error {
+	if IsRemote(value) {
 		return t.Cloud.Delete(ctx, value, directory)
 	}
-	if directory {
-		return os.Remove(value)
-	}
-	return localfs.Delete(ctx, value)
+	return localfs.RemoveTransferSource(value, directory, revision)
 }
-func (t *Transfer) copyStream(ctx context.Context, source, destination string, size int64, revision string) (string, error) {
+func (t *Transfer) copyStream(ctx context.Context, source, destination string, src localfs.Entry, revision string) (string, error) {
+	size := src.Size
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	reader, writer := io.Pipe()
@@ -81,7 +96,9 @@ func (t *Transfer) copyStream(ctx context.Context, source, destination string, s
 		done <- err
 	}()
 	var err error
-	if IsCloud(destination) {
+	if IsArchive(destination) {
+		err = t.putMember(ctx, destination, reader, src, revision)
+	} else if IsCloud(destination) {
 		err = t.Cloud.Write(ctx, destination, reader, size)
 	} else {
 		err = t.Local.Upload(ctx, destination, reader, size, revision)
@@ -111,8 +128,17 @@ func (t *Transfer) Run(ctx context.Context, source, destination string, move boo
 	}
 	return t.runTransfer(ctx, source, destination, move, policy, expected)
 }
+func (t *Transfer) putMember(ctx context.Context, value string, in io.Reader, src localfs.Entry, expected string) error {
+	store, ok := t.Cloud.(interface {
+		PutMember(context.Context, string, io.Reader, localfs.Entry, string) error
+	})
+	if !ok {
+		return errors.New("archive storage unavailable")
+	}
+	return store.PutMember(ctx, value, in, src, expected)
+}
 func (t *Transfer) runTransfer(ctx context.Context, source, destination string, move bool, policy localfs.Conflict, expected string) (localfs.Result, error) {
-	if !IsCloud(source) && !IsCloud(destination) {
+	if !IsRemote(source) && !IsRemote(destination) {
 		return t.Local.Transfer(ctx, source, destination, move, policy, expected)
 	}
 	if IsCloud(source) && move {
@@ -195,7 +221,7 @@ func (t *Transfer) runTransfer(ctx context.Context, source, destination string, 
 		return localfs.Result{}, errors.New("destination changed; choose what to do again")
 	}
 	if src.Directory {
-		if err = t.mkdir(ctx, destination); err != nil {
+		if err = t.mkdir(ctx, destination, src); err != nil {
 			return localfs.Result{}, err
 		}
 		return t.merge(ctx, source, destination, move, policy)
@@ -217,7 +243,7 @@ func (t *Transfer) runTransfer(ctx context.Context, source, destination string, 
 			_ = t.Cloud.Delete(cleanup, stage, false)
 		}()
 	}
-	hash, err := t.copyStream(ctx, source, actual, src.Size, expected)
+	hash, err := t.copyStream(ctx, source, actual, src, expected)
 	if err != nil {
 		return localfs.Result{}, err
 	}
@@ -250,7 +276,7 @@ func (t *Transfer) runTransfer(ctx context.Context, source, destination string, 
 		if err != nil || current.Revision != src.Revision {
 			return localfs.Result{}, errors.New("source changed; both copies preserved")
 		}
-		if err = t.remove(ctx, source, false); err != nil {
+		if err = t.remove(ctx, source, false, src.Revision); err != nil {
 			return localfs.Result{}, err
 		}
 	}
@@ -283,7 +309,7 @@ func (t *Transfer) merge(ctx context.Context, source, destination string, move b
 			return result, err
 		}
 		if len(remaining) == 0 {
-			if err = t.remove(ctx, source, true); err != nil {
+			if err = t.remove(ctx, source, true, ""); err != nil {
 				return result, err
 			}
 		}
