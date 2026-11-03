@@ -133,18 +133,13 @@ func operationMain() bool {
 		defer stop()
 		var file *os.File
 		if cloudfs.IsCloud(path) {
-			const limit = 64 << 20
 			cloud := &cloudfs.Client{Broker: cloudBroker()}
 			item, e := cloud.Stat(ctx, path)
 			if e != nil {
 				reply(nil, e)
 				return true
 			}
-			if item.Directory || item.Size < 0 || item.Size > limit {
-				reply(nil, errors.New("Cloud archive exceeds the 64 MiB preview limit"))
-				return true
-			}
-			file, _, err = cloudfs.Spool(func(w io.Writer) error { return cloud.Read(ctx, path, w) }, limit)
+			file, err = cloud.OpenArchive(ctx, path, item)
 		} else {
 			file, err = localfs.Open(path)
 		}
