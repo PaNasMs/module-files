@@ -62,6 +62,7 @@ export const fileIcon = (entry: Pick<FileEntry, "name" | "directory" | "git">) =
     ? (entry.git ? mdiGit : mdiFolderOutline)
     : (icons.get(extension(entry.name)) ?? mdiFileOutline);
 export const hasThumbnail = (entry: FileEntry) =>
+  !entry.path.startsWith("arc:") &&
   !entry.directory &&
   !entry.link &&
   entry.size <= 64 * 1024 * 1024 &&

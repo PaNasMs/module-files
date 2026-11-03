@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { tr, locale } from "./i18n";
 import { FolderPermissions, PermissionsMenuAction } from "./folder-permissions";
 import { useGit, GitPanel, GitStatus } from "./git-folders";
-import { ArchivePreview, isArchive } from "./archive-preview";
+import { archiveSource, displayPath, folderTarget, rarFolder, resolveAddress } from "./archive-folder";
 import { FileVisual } from "./file-visual";
 import {
   deviceVolumes,
@@ -20,7 +20,7 @@ import {
   type Removable,
 } from "@panasms/removable";
 import { registerModule } from "@panasms/runtime";
-import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
+import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiContentPaste, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,6 +53,7 @@ type Listing = {
   entries: Entry[];
   trashRoots?: string[];
   freeBytes?: number;
+  readOnly?: boolean;
 };
 export function FilesPage() {
   const session = useQuery({
@@ -75,7 +76,7 @@ export function FilesPage() {
     onSuccess: p => q.setQueryData(["preferences"], p),
     onError: e => setError(e.message),
   });
-  const pinAction = (folder: string, disabled = false) => <Button aria-label={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} title={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} disabled={disabled || preferences.isPending || !!preferences.error || savePins.isPending || (!pins.includes(folder) && pins.length >= 64)} onClick={() => { savePins.mutate(folder); setMenu(null); }}><Icon path={pins.includes(folder) ? mdiPinOffOutline : mdiPinOutline} /></Button>;
+  const pinAction = (folder: string, disabled = false) => !folder.startsWith("arc:") && <Button aria-label={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} title={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} disabled={disabled || preferences.isPending || !!preferences.error || savePins.isPending || (!pins.includes(folder) && pins.length >= 64)} onClick={() => { savePins.mutate(folder); setMenu(null); }}><Icon path={pins.includes(folder) ? mdiPinOffOutline : mdiPinOutline} /></Button>;
   const browserNavigate = useNavigate();
   const [path, setPath] = useQueryValue("path");
   const [deleting, setDeleting] = useState<{
@@ -87,6 +88,7 @@ export function FilesPage() {
     items: Entry[];
   } | null>(null);
   const [destination, setDestination] = useState("");
+  const [clipboard, setClipboard] = useState<{kind: "copy" | "move"; items: Entry[]} | null>(null);
   const [dragging, setDragging] = useState(false);
   // On a phone the places tree is folded away until asked for.
   const [placesOpen, setPlaces] = useState(false);
@@ -127,6 +129,8 @@ export function FilesPage() {
   const addressInput = useRef<HTMLInputElement>(null);
   const anchor = useRef<string | null>(null);
   const deviceView = path.startsWith("device:");
+  const archive = archiveSource(path);
+  const archiveRoot = path.split("/")[0];
   const cloudView = path.startsWith("cloud:");
  const git = useGit(path);
   const devicesQuery = useQuery({
@@ -144,7 +148,7 @@ export function FilesPage() {
     enabled: !deviceView,
     queryKey: ["files", path],
     queryFn: () => managed<Listing>("files", undefined, path),
-    refetchInterval: cloudView ? false : 10000,
+    refetchInterval: cloudView || archive ? false : 10000,
   });
   const locations = useQuery({
     queryKey: ["file-places"],
@@ -171,9 +175,11 @@ export function FilesPage() {
   );
   const places = allPlaces.filter((p) => !removablePoints.has(p.path));
   const roots = [...(locations.data?.roots ?? data.data?.roots ?? []), ...cloud.places.map(p => p.path)];
+  const physicalPath = displayPath(path);
+  const readOnly = data.data?.readOnly ?? false;
   const root = [...roots]
     .sort((a, b) => b.length - a.length)
-    .find((r) => path === r || path.startsWith(r.replace(/\/$/, "") + "/"));
+    .find((r) => physicalPath === r || physicalPath.startsWith(r.replace(/\/$/, "") + "/"));
   const entries = [...(data.data?.entries ?? [])]
     .filter((e) => path === "trash:" || hidden || !e.name.startsWith("."))
     .sort(
@@ -227,7 +233,7 @@ export function FilesPage() {
     anchor.current = null;
     setMenu(null);
     setError("");
-    setAddress(path);
+    setAddress(displayPath(path));
   }, [path]);
   useEffect(() => {
     if (editing) addressInput.current?.select();
@@ -300,11 +306,25 @@ export function FilesPage() {
   }
   function open(e: Entry) {
     if (e.link) return;
-    if (e.directory) navigate(e.path);
+    const folder = folderTarget(e);
+    if (folder) navigate(folder);
     else setPreview(e);
   }
   const canUpload =
-    !!path && !deviceView && !inTrash && !data.error && !data.isPending;
+    !!path && !readOnly && !deviceView && !inTrash && !data.error && !data.isPending;
+  function remember(kind: "copy" | "move") {
+    if (!selected.length || selected.some(e => e.link) || (kind === "move" && (readOnly || inTrash))) return;
+    setClipboard({kind, items: [...selected]});
+    setMenu(null);
+  }
+  const canPaste = !!clipboard && canUpload && clipboard.items.every(e => !e.directory || !displayPath(path).startsWith(displayPath(e.path) + "/") && displayPath(path) !== displayPath(e.path)) && !(clipboard.kind === "move" && clipboard.items.some(e => parentFolder(e.path) === path));
+  function pasteItems() {
+    if (!clipboard || !canPaste) return;
+    enqueueFiles(q, clipboard.kind, clipboard.items, path);
+    if (clipboard.kind === "move") setClipboard(null);
+    setMenu(null);
+  }
+  const pasteButton = <Button aria-label={tr("archive.paste")} title={tr("archive.paste")} disabled={!canPaste} onClick={pasteItems}><Icon path={mdiContentPaste} /></Button>;
   useEffect(() => {
     const prevent = (e: globalThis.DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
@@ -343,7 +363,7 @@ export function FilesPage() {
   }
   function canMoveTo(destination: string) {
     return (
-      !!destination &&
+      !!destination && !rarFolder(destination) &&
       !inTrash &&
       dragged.current.length > 0 &&
       dragged.current.every(
@@ -364,7 +384,7 @@ export function FilesPage() {
     dragged.current = items;
     setSelection(items.map((item) => item.path));
     setMenu(null);
-    event.dataTransfer.effectAllowed = "copyMove";
+    event.dataTransfer.effectAllowed = readOnly ? "copy" : "copyMove";
     event.dataTransfer.setData("application/x-panasms-files", "move");
   }
   function overFolder(event: DragEvent, destination: string) {
@@ -373,7 +393,7 @@ export function FilesPage() {
     event.preventDefault();
     event.stopPropagation();
     const allowed = canMoveTo(destination);
-    event.dataTransfer.dropEffect = allowed ? "move" : "none";
+    event.dataTransfer.dropEffect = allowed ? (readOnly ? "copy" : "move") : "none";
     setDropTarget(allowed ? destination : "");
   }
   async function dropMove(event: DragEvent, destination: string) {
@@ -409,11 +429,11 @@ export function FilesPage() {
       icon={icon}
       label={label}
       actions={[name]}
-      disabled={!single || single.link}
+      disabled={!single || single.link || readOnly}
       initial={{ target: single?.path, destination }}
       context={
         single
-          ? [{ key: "target", label: tr("item_1f85d203"), value: single.path }]
+          ? [{ key: "target", label: tr("item_1f85d203"), value: displayPath(single.path) }]
           : []
       }
       autoReview
@@ -462,7 +482,7 @@ export function FilesPage() {
             aria-label={tr(
               kind === "copy" ? "copy_to_40d0eeb3" : "move_to_44eb7965",
             )}
-            disabled={!selected.length || selected.some((e) => e.link)}
+            disabled={!selected.length || selected.some((e) => e.link) || (kind === "move" && readOnly)}
             onClick={() => {
               setTransferDialog({ kind, items: [...selected] });
               setDestination("");
@@ -491,9 +511,9 @@ export function FilesPage() {
       <Button
         title={tr("delete.title")}
         aria-label={tr("delete.title")}
-        disabled={!selected.length || selected.some((e) => e.link)}
+        disabled={readOnly || !selected.length || selected.some((e) => e.link)}
         onClick={() => {
-          setDeleting({ items: [...selected], inTrash: inTrash || cloudView });
+          setDeleting({ items: [...selected], inTrash: inTrash || cloudView || !!archive });
           setMenu(null);
         }}
       >
@@ -501,19 +521,17 @@ export function FilesPage() {
       </Button>
     </>
   );
-  const crumbPaths = root
-    ? [
-        root,
-        ...path
-          .slice(root.length)
-          .split("/")
-          .filter(Boolean)
-          .map(
-            (_, i, parts) =>
-              root.replace(/\/$/, "") + "/" + parts.slice(0, i + 1).join("/"),
-          ),
-      ]
-    : [];
+  function breadcrumbs(location: string): string[] {
+    const source = archiveSource(location);
+    if (source) {
+      const parts = location.split("/");
+      return [...breadcrumbs(parentFolder(source)), ...parts.map((_, i) => parts.slice(0,i+1).join("/"))];
+    }
+    if (!root) return [];
+    const parts = location.slice(root.length).split("/").filter(Boolean);
+    return [root, ...parts.map((_, i) => root.replace(/\/$/, "") + "/" + parts.slice(0,i+1).join("/"))];
+  }
+  const crumbPaths = breadcrumbs(path);
   return (
     <>
       {deleting && (
@@ -558,7 +576,7 @@ export function FilesPage() {
                   <Button
                     className="primary"
                     disabled={
-                      !destination ||
+                      !destination || rarFolder(destination) ||
                       transferDialog.items.some(
                         (item) =>
                           destination === item.path ||
@@ -602,6 +620,7 @@ export function FilesPage() {
                       folder={place.path}
                       label={place.name}
                       current={destination}
+                      writableOnly
                       hidden={hidden}
                       navigate={setDestination}
                       dropTarget=""
@@ -614,7 +633,7 @@ export function FilesPage() {
                   ))}
               </ul>
               <p className="file-destination-path">
-                {destination || tr("task.noDestination")}
+                {displayPath(destination) || tr("task.noDestination")}
               </p>
             </DialogContent>
           </Dialog.Portal>
@@ -644,6 +663,12 @@ export function FilesPage() {
         className="file-manager"
         data-places={placesOpen ? "open" : "closed"}
         onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.target instanceof HTMLElement && !e.target.closest('input,textarea,[contenteditable],[role="dialog"]') && !window.getSelection()?.toString()) {
+            const key=e.key.toLowerCase();
+            if ((key === "c" || key === "x") && selected.length) {
+              e.preventDefault(); remember(key === "c" ? "copy" : "move");
+            } else if (key === "v" && canPaste) { e.preventDefault(); pasteItems(); }
+          }
           if (e.key === "Escape") {
             setMenu(null);
             setEditing(false);
@@ -651,7 +676,7 @@ export function FilesPage() {
           }
           if ((e.ctrlKey || e.metaKey) && e.key === "l") {
             e.preventDefault();
-            setAddress(path);
+            setAddress(displayPath(path));
             setEditing(true);
           }
         }}
@@ -755,7 +780,7 @@ export function FilesPage() {
               aria-label={tr("up_one_level_25ee7583")}
               disabled={!root || path === root}
               onClick={() => {
-                const parent = path.slice(0, path.lastIndexOf("/")) || "/";
+                const parent = parentFolder(archive && path === archiveRoot ? archive : path);
                 navigate(
                   trashRoot &&
                     (parent === trashRoot ||
@@ -784,7 +809,9 @@ export function FilesPage() {
                 className="file-address"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  navigate(address.trim().replace(/\/+$/, "") || "/");
+                  void resolveAddress(address.trim().replace(/\/+$/, "") || "/",
+                    async folder => (await managed<Listing>("files", undefined, folder)).entries)
+                    .then(navigate).catch(e => setError((e as Error).message));
                 }}
               >
                 <input
@@ -817,11 +844,11 @@ export function FilesPage() {
                         {...folderDrop(p)}
                         className={dropTarget === p ? "file-move-target" : ""}
                         onClick={() => navigate(p)}
-                        title={p}
+                        title={displayPath(p)}
                       >
                         {i === 0
                           ? allPlaces.find((v) => v.path === p)?.name || p
-                          : p.split("/").at(-1)}
+                          : displayPath(p).split("/").at(-1)}
                       </button>
                     </span>
                   ))
@@ -832,13 +859,14 @@ export function FilesPage() {
               title={tr("enter_path_ctrl_l_0fbbc6a5")}
               aria-label={tr("enter_path_b6a0717e")}
               onClick={() => {
-                setAddress(path);
+                setAddress(displayPath(path));
                 setEditing((v) => !v);
               }}
             >
               <Icon path={mdiPencilOutline} />
             </Button>
           </div>
+          {readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
           <GitPanel key={path} onSwitched={setPath} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
@@ -851,7 +879,7 @@ export function FilesPage() {
                   label={tr("create_folder_944b559c")}
                   actions={["file.mkdir"]}
                   initial={{ parent: path }}
-                  disabled={deviceView || inTrash || !path || !!data.error}
+                  disabled={deviceView || readOnly || inTrash || !path || !!data.error}
                 />
                 <Button
                   title={tr("upload_file_6212feb0")}
@@ -872,18 +900,19 @@ export function FilesPage() {
                   }}
                 />
                 {itemActions}
+                {clipboard && pasteButton}
                 <span className="file-toolbar-spacer" />
                 {pinAction(path, inTrash || !path || !!data.error || data.isPending)}
                 <FolderPermissions
                   key={path}
                   path={path}
-                  disabled={deviceView || cloudView || inTrash || !path}
+                  disabled={!!archive || deviceView || cloudView || inTrash || !path}
                 />
                 {session.data?.role === "admin" && (
                   <Button
                     title={tr("share_folder")}
                     aria-label={tr("share_folder")}
-                    disabled={cloudView || inTrash || !path}
+                    disabled={!!archive || cloudView || inTrash || !path}
                     onClick={() =>
                       browserNavigate(
                         "/sharing?folder=" + encodeURIComponent(path),
@@ -989,7 +1018,7 @@ export function FilesPage() {
                     ? tr("drop_files_to_upload_993a0092")
                     : tr("open_a_folder_first_4327ac8a")}
                 </strong>
-                {canUpload && <span>{path}</span>}
+                {canUpload && <span>{displayPath(path)}</span>}
               </div>
             )}
             {!path ? (
@@ -1084,7 +1113,7 @@ export function FilesPage() {
                         dragged.current = [];
                         setDropTarget("");
                       }}
-                      {...(e.directory && !e.link ? folderDrop(e.path) : {})}
+                      {...(folderTarget(e) ? folderDrop(folderTarget(e)!) : {})}
                       title={
                         e.link
                           ? tr(
@@ -1224,7 +1253,7 @@ export function FilesPage() {
                         {e.directory || e.size < 0 ? "—" : bytes(e.size)}
                       </span>
                       <span className="file-entry-date">
-                        {inTrash && !e.deleted
+                        {(inTrash && !e.deleted) || (archive && !e.modified)
                           ? "—"
                           : new Date((inTrash ? e.deleted! : e.modified) * 1000).toLocaleString(locale(), {
                               dateStyle: "short",
@@ -1280,7 +1309,7 @@ export function FilesPage() {
                   ? tr("trash.originalPath", { path: single.original })
                   : tr("trash.originalUnknown")}
               </span>
-            ) : path !== "trash:" && !cloudView && data.data?.freeBytes != null && (
+            ) : path !== "trash:" && !cloudView && !archive && data.data?.freeBytes != null && (
               <span>
                 {tr("free_a2f50530") + " "}
                 {bytes(data.data.freeBytes)}
@@ -1337,7 +1366,7 @@ export function FilesPage() {
           style={{ left: menu.x, top: menu.y }}
         >
           {menu.kind === "drop" ? (
-            <DropActions onChoose={(kind, conflict) => {
+            <DropActions copyOnly={readOnly} onChoose={(kind, conflict) => {
               enqueueFiles(q, kind, menu.items!, menu.destination!, conflict);
               setMenu(null);
               setSelection([]);
@@ -1345,10 +1374,12 @@ export function FilesPage() {
           ) : menu.kind === "item" ? (
             <>
               {itemActions}
+              <Button aria-label={tr("archive.copy")} title={tr("archive.copy")} disabled={!selected.length || selected.some(e => e.link)} onClick={() => remember("copy")}><Icon path={mdiContentCopy} /></Button>
+              <Button aria-label={tr("archive.cut")} title={tr("archive.cut")} disabled={readOnly || inTrash || !selected.length || selected.some(e => e.link)} onClick={() => remember("move")}><Icon path={mdiContentCut} /></Button>
               {single?.directory && !single.link && !inTrash && pinAction(single.path)}
               <PermissionsMenuAction
                 disabled={
-                  cloudView || inTrash || !selected.length || selected.some((e) => e.link)
+                  !!archive || cloudView || inTrash || !selected.length || selected.some((e) => e.link)
                 }
                 onClick={() => {
                   setPermissionTargets(selected.map((e) => e.path));
@@ -1358,13 +1389,14 @@ export function FilesPage() {
             </>
           ) : (
             <>
-              {pinAction(path, deviceView || inTrash || !path || !!data.error)}
+              {pasteButton}
+              {pinAction(path, deviceView || readOnly || inTrash || !path || !!data.error)}
               <OperationButton
                 icon={mdiFolderPlusOutline}
                 label={tr("create_folder_944b559c")}
                 actions={["file.mkdir"]}
                 initial={{ parent: path }}
-                disabled={deviceView || inTrash || !path || !!data.error}
+                disabled={deviceView || readOnly || inTrash || !path || !!data.error}
               />
               <Button
                 aria-label={tr("upload_files_9906a6ad")}
@@ -1447,6 +1479,7 @@ export function FilesPage() {
   );
 }
 type FolderTreeProps = {
+  writableOnly?: boolean;
   onUnpin?: () => void;
   unpinDisabled?: boolean;
   dropAllowed?: boolean;
@@ -1465,6 +1498,7 @@ type FolderTreeProps = {
   };
 };
 function FolderTree({
+  writableOnly = false,
   onUnpin,
   unpinDisabled,
   folder: initialFolder,
@@ -1512,11 +1546,11 @@ function FolderTree({
     queryKey: ["files", folder],
     queryFn: () => managed<Listing>("files", undefined, folder),
     enabled: expanded,
-    refetchInterval: expanded && !folder.startsWith("cloud:") ? 10000 : false,
+    refetchInterval: expanded && !folder.startsWith("arc:") && !folder.startsWith("cloud:") ? 10000 : false,
   });
   const children = (listing.data?.entries ?? [])
     .filter(
-      (e) => e.directory && !e.link && (hidden || !e.name.startsWith(".")),
+      (e) => !!folderTarget(e) && (hidden || !e.name.startsWith(".")),
     )
     .sort((a, b) => a.name.localeCompare(b.name, locale(), { numeric: true }));
   return (
@@ -1539,7 +1573,7 @@ function FolderTree({
           className="file-tree-link"
           title={folder}
           aria-current={current === folder ? "page" : undefined}
-          disabled={busy}
+          disabled={busy || (writableOnly && (rarFolder(folder) || listing.data?.readOnly))}
           onClick={() => void activate(false)}
         >
           <Icon path={icon} />
@@ -1568,7 +1602,8 @@ function FolderTree({
             children.map((child) => (
               <FolderTree
                 key={child.path}
-                folder={child.path}
+                writableOnly={writableOnly}
+                folder={folderTarget(child)!}
                 label={child.name}
                 current={current}
                 hidden={hidden}
@@ -1675,7 +1710,6 @@ function Preview({ entry }: { entry: Entry }) {
   const [image, setImage] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
-    if (isArchive(entry.name)) return;
     const controller = new AbortController();
     let objectURL: string | undefined;
     setLoading(true);
@@ -1762,7 +1796,7 @@ function Preview({ entry }: { entry: Entry }) {
               <Dialog.Title>{entry.name}</Dialog.Title>
             </div>
             <Dialog.Description className="muted small">
-              {entry.path}
+              {displayPath(entry.path)}
             </Dialog.Description>{" "}
           </>
         }
@@ -1770,7 +1804,7 @@ function Preview({ entry }: { entry: Entry }) {
         intent="inspect"
         dirty={false}
       >
-        {isArchive(entry.name) ? <ArchivePreview path={entry.path} /> : loading ? (
+        {loading ? (
           <p role="status">{tr("loading_b6819e91")}</p>
         ) : error ? (
           <Notice error>{error}</Notice>

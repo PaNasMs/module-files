@@ -16,8 +16,22 @@ import (
 	"time"
 )
 
+type Store interface {
+	List(context.Context, string) ([]localfs.Entry, error)
+	Stat(context.Context, string) (localfs.Entry, error)
+	Read(context.Context, string, io.Writer) error
+	Write(context.Context, string, io.Reader, int64) error
+	Upload(context.Context, string, io.Reader, int64, string) error
+	Mkdir(context.Context, string) error
+	Delete(context.Context, string, bool) error
+	Publish(context.Context, string, string) error
+}
+
+func IsArchive(value string) bool { return strings.HasPrefix(value, "arc:") }
+func IsRemote(value string) bool  { return IsCloud(value) || IsArchive(value) }
+
 type Transfer struct {
-	Cloud            *Client
+	Cloud            Store
 	Local            *localfs.Engine
 	Progress         func(float64)
 	total, completed int64
@@ -26,14 +40,14 @@ type Transfer struct {
 }
 
 func (t *Transfer) List(ctx context.Context, folder string) ([]localfs.Entry, error) {
-	if IsCloud(folder) {
+	if IsRemote(folder) {
 		return t.Cloud.List(ctx, folder)
 	}
 	entries, _, err := localfs.List(folder)
 	return entries, err
 }
 func (t *Transfer) Stat(ctx context.Context, value string) (localfs.Entry, error) {
-	if IsCloud(value) {
+	if IsRemote(value) {
 		return t.Cloud.Stat(ctx, value)
 	}
 	entries, _, err := localfs.List(filepath.Dir(value))
@@ -48,19 +62,19 @@ func (t *Transfer) Stat(ctx context.Context, value string) (localfs.Entry, error
 	return localfs.Entry{}, os.ErrNotExist
 }
 func (t *Transfer) read(ctx context.Context, value string, out io.Writer) error {
-	if IsCloud(value) {
+	if IsRemote(value) {
 		return t.Cloud.Read(ctx, value, out)
 	}
 	return localfs.Download(value, out)
 }
 func (t *Transfer) mkdir(ctx context.Context, value string) error {
-	if IsCloud(value) {
+	if IsRemote(value) {
 		return t.Cloud.Mkdir(ctx, value)
 	}
 	return localfs.Mkdir(value)
 }
 func (t *Transfer) remove(ctx context.Context, value string, directory bool) error {
-	if IsCloud(value) {
+	if IsRemote(value) {
 		return t.Cloud.Delete(ctx, value, directory)
 	}
 	if directory {
@@ -81,7 +95,9 @@ func (t *Transfer) copyStream(ctx context.Context, source, destination string, s
 		done <- err
 	}()
 	var err error
-	if IsCloud(destination) {
+	if IsArchive(destination) {
+		err = t.Cloud.Upload(ctx, destination, reader, size, revision)
+	} else if IsCloud(destination) {
 		err = t.Cloud.Write(ctx, destination, reader, size)
 	} else {
 		err = t.Local.Upload(ctx, destination, reader, size, revision)
@@ -112,7 +128,7 @@ func (t *Transfer) Run(ctx context.Context, source, destination string, move boo
 	return t.runTransfer(ctx, source, destination, move, policy, expected)
 }
 func (t *Transfer) runTransfer(ctx context.Context, source, destination string, move bool, policy localfs.Conflict, expected string) (localfs.Result, error) {
-	if !IsCloud(source) && !IsCloud(destination) {
+	if !IsRemote(source) && !IsRemote(destination) {
 		return t.Local.Transfer(ctx, source, destination, move, policy, expected)
 	}
 	if IsCloud(source) && move {

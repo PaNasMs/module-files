@@ -12,7 +12,7 @@ import (
 	"path"
 )
 
-func Cloud(ctx context.Context, mode string, r Request, cloud *cloudfs.Client, local *localfs.Engine, progress func(float64)) (any, error) {
+func Cloud(ctx context.Context, mode string, r Request, cloud cloudfs.Store, local *localfs.Engine, progress func(float64)) (any, error) {
 	transfer := &cloudfs.Transfer{Cloud: cloud, Local: local, Progress: progress}
 	if mode == "query" {
 		entries, err := cloud.List(ctx, r.Target)
@@ -68,7 +68,10 @@ func Cloud(ctx context.Context, mode string, r Request, cloud *cloudfs.Client, l
 	}
 	return nil, errors.New("operation unavailable for cloud files")
 }
-func deleteCloud(ctx context.Context, cloud *cloudfs.Client, target string) error {
+func deleteCloud(ctx context.Context, cloud cloudfs.Store, target string) error {
+	if cloudfs.IsArchive(target) {
+		return cloud.Delete(ctx, target, true)
+	}
 	_, rel, err := cloudfs.Parse(target)
 	if err != nil || rel == "" || path.Clean(rel) == "." {
 		return errors.New("cannot remove an account root")

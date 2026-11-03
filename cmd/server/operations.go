@@ -157,7 +157,7 @@ func operationMain() bool {
 		reply(value, err)
 		return true
 	}
-	if cloudfs.IsCloud(r.Target) || cloudfs.IsCloud(r.Params.Target) || cloudfs.IsCloud(r.Params.Destination) {
+	if cloudfs.IsRemote(r.Target) || cloudfs.IsRemote(r.Params.Target) || cloudfs.IsRemote(r.Params.Destination) {
 		engine.Check = nil
 		engine.Capability(true)
 		defer engine.Capability(false)
@@ -177,7 +177,18 @@ func operationMain() bool {
 			}
 		}()
 		cloud := &cloudfs.Client{Broker: cloudBroker()}
-		value, err = operations.Cloud(ctx, mode, r, cloud, engine, func(percent float64) {
+		store := &archiveview.Store{Client: cloud}
+		defer store.Close()
+		if err = store.CheckOperation(ctx, mode, r.Action, r.Params.Target, r.Params.Destination); err != nil {
+			reply(nil, err)
+			return true
+		}
+		if mode == "query" && cloudfs.IsArchive(r.Target) {
+			entries, e := store.List(ctx, r.Target)
+			reply(map[string]any{"path": r.Target, "entries": entries, "readOnly": store.ReadOnly(ctx, r.Target)}, e)
+			return true
+		}
+		value, err = operations.Cloud(ctx, mode, r, store, engine, func(percent float64) {
 			_ = json.NewEncoder(os.Stderr).Encode(map[string]float64{"percent": percent})
 		})
 		reply(value, err)

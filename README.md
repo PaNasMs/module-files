@@ -6,7 +6,7 @@ mounted devices and linked Google Drive or Dropbox accounts, and runs uploads,
 copies, moves and deletions as background tasks. Project website:
 <https://panasms.github.io/>.
 
-The current version is 0.3.21. It requires PaNasMs core `>=0.2.20,<0.3.0` and
+The current version is 0.3.22. It requires PaNasMs core `>=0.2.20,<0.3.0` and
 module API 1, and is published for ARM64 and AMD64.
 
 ## Install
@@ -22,7 +22,9 @@ an administrator can also upload a signed `.panasms` archive from there.
   cloud accounts and Trash. Removable volumes mount automatically.
 - List and tile views. Tiles show lazy image thumbnails for local files and
   file-type icons for everything else.
-- Open ZIP, RAR, 7z, TAR and gzip/bzip2/xz-compressed TAR archives to browse folders and file sizes without extracting them. Cloud archives are limited to 64 MiB. The viewer accepts up to 3,000 entries within its listing size and processing limits. Encrypted headers require downloading the archive.
+- Open archives in the file list. Navigate with breadcrumbs and Back, open or download members, and copy files or folders between an archive, local storage and linked cloud accounts. Copy/Cut/Paste and their keyboard shortcuts also work across folders.
+- ZIP, 7z and TAR (plain, gzip, bzip2 or xz) support creating folders, uploads, renaming, moving and deleting members. RAR and archives with encrypted entries are read-only. Deleting an archive member is permanent. Sharing and Linux permissions apply to the containing file.
+- Listings support up to 3,000 entries. Edits and member reads have a 1 GiB working-size limit, and cloud or nested containers are limited to 64 MiB. Up to four archive levels can be browsed. A move verifies each copy before removing its source. Directory transfers can complete partially and report an error, as with ordinary transfers.
 - Upload, download, create, rename, copy, move, trash, restore and permanently
   delete files and folders, including mixed multi-selections with one
   confirmation and per-item error reporting.
@@ -185,7 +187,7 @@ the pinned [module SDK](https://github.com/PaNasMs/module-sdk).
 | `tests/` | Node tests for the background queue |
 
 You need Linux on the target architecture (ARM64 or AMD64), Node.js 24, Go 1.26
-or newer, Python 3, a C compiler and the `libpam0g-dev` and `unar` packages. CI uses Go 1.27.1. To build:
+or newer, Python 3, a C compiler and the `libpam0g-dev`, `unar`, `7zip`, `tar`, `gzip`, `bzip2` and `xz-utils` packages. CI uses Go 1.27.1. To build:
 
 ```sh
 sh scripts/build.sh

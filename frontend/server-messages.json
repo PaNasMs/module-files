@@ -450,5 +450,41 @@
     "en": "Cloud archive exceeds the 64 MiB preview limit",
     "ru": "Для облачных архивов доступен предпросмотр до 64 МиБ.",
     "uk": "Для хмарних архівів доступний попередній перегляд до 64 МіБ."
+  },
+  {
+    "key": "archive.locked",
+    "en": "This archive is read-only",
+    "ru": "Архив доступен только для чтения",
+    "uk": "Архів доступний лише для читання"
+  },
+  {
+    "key": "archive.unsafe",
+    "en": "Invalid archive member path",
+    "ru": "Архив содержит недопустимый или неоднозначный путь",
+    "uk": "Архів містить недопустимий або неоднозначний шлях"
+  },
+  {
+    "key": "archive.verify",
+    "en": "Archive update could not be verified",
+    "ru": "Не удалось проверить изменения архива",
+    "uk": "Не вдалося перевірити зміни архіву"
+  },
+  {
+    "key": "archive.editFailed",
+    "en": "Archive operation failed; the original archive was preserved",
+    "ru": "Операция с архивом не удалась. Исходный архив сохранён.",
+    "uk": "Операція з архівом не вдалася. Початковий архів збережено."
+  },
+  {
+    "key": "archive.cannotRead",
+    "en": "This archive member cannot be read",
+    "ru": "Не удалось прочитать элемент архива",
+    "uk": "Не вдалося прочитати елемент архіву"
+  },
+  {
+    "key": "archive.changed",
+    "en": "Archive changed or cannot be safely replaced",
+    "ru": "Архив изменился или недоступен для замены",
+    "uk": "Архів змінився або недоступний для заміни"
   }
 ]
