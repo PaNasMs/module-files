@@ -163,6 +163,7 @@ export function FilesPage() {
   const dragDepth = useRef(0);
   const uploadInput = useRef<HTMLInputElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
+  const addressRequest = useRef<AbortController | null>(null);
   const anchor = useRef<string | null>(null);
   const deviceView = path.startsWith("device:");
   const archive = archiveSource(path);
@@ -257,7 +258,9 @@ export function FilesPage() {
     if (single) void enterVolume(single);
     else navigate("device:" + device.path);
   }
+  useLayoutEffect(() => () => addressRequest.current?.abort(), [path, viewerFile, editing]);
   function navigate(next: string) {
+    addressRequest.current?.abort();
     if (path !== next || viewerFile) {
       setFolderParams(current => {
         const updated = new URLSearchParams(current);
@@ -863,16 +866,23 @@ export function FilesPage() {
                 className="file-address"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  addressRequest.current?.abort();
+                  const request = new AbortController();
+                  addressRequest.current = request;
                   void resolveAddress(address.trim().replace(/\/+$/, "") || "/",
-                    async folder => (await listFolder<Listing>(folder)).entries)
-                    .then(navigate).catch(e => setError((e as Error).message));
+                    async folder => {
+                      request.signal.throwIfAborted();
+                      return (await listFolder<Listing>(folder, request.signal)).entries;
+                    })
+                    .then(folder => { if (!request.signal.aborted) navigate(folder); })
+                    .catch(e => { if (!request.signal.aborted) setError((e as Error).message); });
                 }}
               >
                 <input
                   ref={addressInput}
                   aria-label={tr("folder_path_b03fafe2")}
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => { addressRequest.current?.abort(); setAddress(e.target.value); }}
                 />
               </form>
             ) : (
