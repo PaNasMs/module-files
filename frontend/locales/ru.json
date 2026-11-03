@@ -1,4 +1,6 @@
 {
+  "viewer.unavailable": "Файл или его просмотрщик недоступен.",
+  "viewer.back": "Вернуться в папку",
   "thumbnail_unavailable_7e25dc75": "Миниатюра недоступна",
   "check_permissions_and_ensure_the_file_name_is_not__5eb4d1e2": "Проверьте права и отсутствие файла с таким именем",
   "transfer_interrupted_74125ab8": "Передача прервана",

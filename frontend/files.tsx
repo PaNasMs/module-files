@@ -6,7 +6,7 @@ import { DeleteItems } from "./delete-items";
 import { request, type Preferences, type Identity } from "@panasms/client";
 import { DialogContent } from "@panasms/ui";
 import { useQueryValue } from "@panasms/navigation";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { tr, locale } from "./i18n";
 import { FolderPermissions, PermissionsMenuAction } from "./folder-permissions";
 import { useGit, GitPanel, GitStatus } from "./git-folders";
@@ -19,14 +19,15 @@ import {
   volumeMountParams,
   type Removable,
 } from "@panasms/removable";
-import { registerModule } from "@panasms/runtime";
+import { modules, registerModule } from "@panasms/runtime";
 import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiContentPaste, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
 type Entry = {
+  revision?: string;
   git?: boolean;
   name: string;
   path: string;
@@ -55,6 +56,38 @@ type Listing = {
   freeBytes?: number;
   readOnly?: boolean;
 };
+type ViewerProps = {
+  entry: Entry; siblings: Entry[]; readOnly: boolean;
+  open: (e: Entry) => void; close: () => void; saved: () => Promise<void>;
+};
+type Contribution = { fileViewer?: { accepts: (name: string) => boolean; component: ComponentType<ViewerProps> } };
+
+function ViewerSession({ viewer: Viewer, folder, ...props }: Omit<ViewerProps, "saved"> & { viewer: ComponentType<ViewerProps>; folder: string }) {
+  const q = useQueryClient();
+  const live = useRef(false);
+  const [refresh, setRefresh] = useState<string | null>(null);
+  useLayoutEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+
+  async function saved() {
+    const queryKey = ["files", folder];
+    if (live.current) setRefresh("");
+    // An earlier save may complete while another editor owns this folder. Only its target revision is stale.
+    q.setQueryData<Listing>(queryKey, listing => listing && ({
+      ...listing, entries: listing.entries.map(e => e.path === props.entry.path ? {...e, revision: undefined} : e),
+    }));
+    try {
+      await q.invalidateQueries({queryKey, exact: true}, {throwOnError: true});
+      if (live.current) props.close();
+    } catch (error) {
+      if (live.current) setRefresh((error as Error).message || tr("viewer.unavailable"));
+    }
+  }
+  if (refresh !== null) return <div className="panel" role="status">
+    {refresh ? <><Notice error>{refresh}</Notice><Button onClick={() => void saved()}>{tr("retry_9e506acb")}</Button></> : tr("loading_b6819e91")}
+    <Button onClick={props.close}>{tr("viewer.back")}</Button>
+  </div>;
+  return <Viewer {...props} saved={saved} />;
+}
 export function FilesPage() {
   const session = useQuery({
     queryKey: ["session"],
@@ -78,7 +111,8 @@ export function FilesPage() {
   });
   const pinAction = (folder: string, disabled = false) => !folder.startsWith("arc:") && <Button aria-label={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} title={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} disabled={disabled || preferences.isPending || !!preferences.error || savePins.isPending || (!pins.includes(folder) && pins.length >= 64)} onClick={() => { savePins.mutate(folder); setMenu(null); }}><Icon path={pins.includes(folder) ? mdiPinOffOutline : mdiPinOutline} /></Button>;
   const browserNavigate = useNavigate();
-  const [path, setPath] = useQueryValue("path");
+  const [folderParams, setFolderParams] = useSearchParams();
+  const path = folderParams.get("path") ?? "";
   const [deleting, setDeleting] = useState<{
     items: Entry[];
     inTrash: boolean;
@@ -99,6 +133,7 @@ export function FilesPage() {
     "modified",
   ]);
   const [preview, setPreview] = useState<Entry | null>(null);
+  const [viewerFile, setViewerFile] = useQueryValue("file");
   const [view, setView] = useQueryValue("view", "list", ["list", "grid"]);
   const [hiddenValue, setHiddenValue] = useQueryValue("hidden", "0", [
     "0",
@@ -222,7 +257,14 @@ export function FilesPage() {
     else navigate("device:" + device.path);
   }
   function navigate(next: string) {
-    if (path !== next) setPath(next);
+    if (path !== next || viewerFile) {
+      setFolderParams(current => {
+        const updated = new URLSearchParams(current);
+        updated.delete("file");
+        if (next) updated.set("path", next); else updated.delete("path");
+        return updated;
+      });
+    }
     setEditing(false);
     setPlaces(false);
   }
@@ -304,11 +346,18 @@ export function FilesPage() {
     else setSelection([e.path]);
     anchor.current = e.path;
   }
+  const handlers = modules().flatMap(m => (m as Contribution).fileViewer ?? []);
+  const viewed = entries.find(e => e.path === viewerFile && !e.directory && !e.link);
+  const Viewer = viewed && handlers.find(h => h.accepts(viewed.name))?.component;
   function open(e: Entry) {
     if (e.link) return;
     const folder = folderTarget(e);
     if (folder) navigate(folder);
-    else setPreview(e);
+    else if (handlers.some(h => h.accepts(e.name))) { setSelection([e.path]); setViewerFile(e.path); }
+    else {
+      if (viewerFile) setViewerFile("");
+      setPreview(e);
+    }
   }
   const canUpload =
     !!path && !readOnly && !deviceView && !inTrash && !data.error && !data.isPending;
@@ -532,6 +581,10 @@ export function FilesPage() {
     return [root, ...parts.map((_, i) => root.replace(/\/$/, "") + "/" + parts.slice(0,i+1).join("/"))];
   }
   const crumbPaths = breadcrumbs(path);
+  if (viewerFile && viewed && Viewer) return <ViewerSession key={viewed.path} viewer={Viewer} folder={path} entry={viewed}
+    siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)}
+    open={open} close={() => setViewerFile("")} />;
+  if (viewerFile) return <div className="panel" role="status">{data.error ? <Notice error>{data.error.message} <Button onClick={() => void data.refetch()}>{tr("retry_9e506acb")}</Button></Notice> : tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
   return (
     <>
       {deleting && (
@@ -867,7 +920,7 @@ export function FilesPage() {
             </Button>
           </div>
           {readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
-          <GitPanel key={path} onSwitched={setPath} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
+          <GitPanel key={path} onSwitched={navigate} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
             aria-label={tr("file_actions_90dbb13a")}

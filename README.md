@@ -6,7 +6,7 @@ mounted devices and linked Google Drive or Dropbox accounts, and runs uploads,
 copies, moves and deletions as background tasks. Project website:
 <https://panasms.github.io/>.
 
-The current version is 0.3.22. It requires PaNasMs core `>=0.2.20,<0.3.0` and
+The current version is 0.3.23. It requires PaNasMs core `>=0.2.20,<0.3.0` and
 module API 1, and is published for ARM64 and AMD64.
 
 ## Install
@@ -15,6 +15,12 @@ Open **Modules** in the PaNasMs panel and install Files from the catalog. The
 module manager picks the package for your architecture. Signed packages and the
 catalog are in the [module registry](https://panasms.github.io/module-registry/);
 an administrator can also upload a signed `.panasms` archive from there.
+
+## Optional viewer integration
+
+Installed member-accessible modules may register a `fileViewer` contribution with `accepts(name)` and a React `component`. Files supplies the entry, visible siblings in display order, a read-only flag, and open/close/saved callbacks. Archives keep folder precedence. The `file` query parameter restores a detail view on refresh. Without a matching handler the built-in preview remains available.
+
+GET the authenticated Files content endpoint with `target=viewer:<path>` to stream even cloud content through the NAS. PUT to the same target with the listed `replace_revision` to save up to 4 MiB of edited text. For an explicit gallery overwrite, PUT to `viewer-image:<path>` with the original revision; the image limit is 48 MiB. Local publication preserves permissions and refuses unsafe replacements; cloud saves require a provider precondition.
 
 ## Features
 

@@ -76,6 +76,23 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			}
 		}
 		target := r.URL.Query().Get("target")
+		if strings.HasPrefix(target, "viewer-image:") && mode == "upload" {
+			target = strings.TrimPrefix(target, "viewer-image:")
+			if r.ContentLength <= 0 || r.ContentLength > 48<<20 || r.URL.Query().Get("replace_revision") == "" {
+				w.WriteHeader(400)
+				return
+			}
+			mode = "edit-image"
+		} else if strings.HasPrefix(target, "viewer:") {
+			target = strings.TrimPrefix(target, "viewer:")
+			if mode == "upload" {
+				if r.ContentLength < 0 || r.ContentLength > 4<<20 || r.URL.Query().Get("replace_revision") == "" {
+					w.WriteHeader(400)
+					return
+				}
+				mode = "edit"
+			}
+		}
 		if len(target) > 1024 {
 			w.WriteHeader(400)
 			return
@@ -100,7 +117,7 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 		cmd := exec.CommandContext(ctx, "/usr/bin/nsenter", "--mount=/proc/1/ns/mnt", "--", executable, "content", mode, id.Username, target, strconv.FormatInt(r.ContentLength, 10), r.URL.Query().Get("replace_revision"))
 		cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 		cmd.WaitDelay = 5 * time.Second
-		if mode == "upload" {
+		if mode == "upload" || mode == "edit" || mode == "edit-image" {
 			if r.ContentLength < 0 {
 				w.WriteHeader(411)
 				return
@@ -109,7 +126,11 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			cmd.Stderr = os.Stderr
 			if e = cmd.Run(); e != nil {
 				log.Printf("upload failed user=%s expected=%d: %v", id.Username, r.ContentLength, e)
-				http.Error(w, "upload failed or file already exists", 409)
+				if mode == "upload" {
+					http.Error(w, "upload failed or file already exists", http.StatusConflict)
+				} else {
+					http.Error(w, "Save not confirmed. Check the file before retrying.", http.StatusConflict)
+				}
 				return
 			}
 			w.WriteHeader(204)
