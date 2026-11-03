@@ -6,7 +6,7 @@ import { DeleteItems } from "./delete-items";
 import { request, type Preferences, type Identity } from "@panasms/client";
 import { DialogContent } from "@panasms/ui";
 import { useQueryValue } from "@panasms/navigation";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { tr, locale } from "./i18n";
 import { FolderPermissions, PermissionsMenuAction } from "./folder-permissions";
 import { useGit, GitPanel, GitStatus } from "./git-folders";
@@ -111,7 +111,8 @@ export function FilesPage() {
   });
   const pinAction = (folder: string, disabled = false) => !folder.startsWith("arc:") && <Button aria-label={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} title={tr(pins.includes(folder) ? "pins.remove" : "pins.add")} disabled={disabled || preferences.isPending || !!preferences.error || savePins.isPending || (!pins.includes(folder) && pins.length >= 64)} onClick={() => { savePins.mutate(folder); setMenu(null); }}><Icon path={pins.includes(folder) ? mdiPinOffOutline : mdiPinOutline} /></Button>;
   const browserNavigate = useNavigate();
-  const [path, setPath] = useQueryValue("path");
+  const [folderParams, setFolderParams] = useSearchParams();
+  const path = folderParams.get("path") ?? "";
   const [deleting, setDeleting] = useState<{
     items: Entry[];
     inTrash: boolean;
@@ -256,7 +257,14 @@ export function FilesPage() {
     else navigate("device:" + device.path);
   }
   function navigate(next: string) {
-    if (path !== next) setPath(next);
+    if (path !== next || viewerFile) {
+      setFolderParams(current => {
+        const updated = new URLSearchParams(current);
+        updated.delete("file");
+        if (next) updated.set("path", next); else updated.delete("path");
+        return updated;
+      });
+    }
     setEditing(false);
     setPlaces(false);
   }
@@ -346,7 +354,10 @@ export function FilesPage() {
     const folder = folderTarget(e);
     if (folder) navigate(folder);
     else if (handlers.some(h => h.accepts(e.name))) { setSelection([e.path]); setViewerFile(e.path); }
-    else setPreview(e);
+    else {
+      if (viewerFile) setViewerFile("");
+      setPreview(e);
+    }
   }
   const canUpload =
     !!path && !readOnly && !deviceView && !inTrash && !data.error && !data.isPending;
@@ -909,7 +920,7 @@ export function FilesPage() {
             </Button>
           </div>
           {readOnly && archive && <Notice>{tr("archive.readOnly")}</Notice>}
-          <GitPanel key={path} onSwitched={setPath} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
+          <GitPanel key={path} onSwitched={navigate} state={git.data?.git} error={git.error} refresh={()=>{void git.refetch();}} />
           <div
             className="file-toolbar"
             aria-label={tr("file_actions_90dbb13a")}
