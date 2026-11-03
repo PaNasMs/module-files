@@ -486,5 +486,11 @@
     "en": "Archive changed or cannot be safely replaced",
     "ru": "Архив изменился или недоступен для замены",
     "uk": "Архів змінився або недоступний для заміни"
+  },
+  {
+    "key": "archive.published",
+    "en": "Archive was updated but the result could not be confirmed. Refresh the folder.",
+    "ru": "Архив был обновлён, но проверить результат не удалось. Обновите папку.",
+    "uk": "Архів оновлено, але перевірити результат не вдалося. Оновіть теку."
   }
 ]

@@ -24,7 +24,7 @@ an administrator can also upload a signed `.panasms` archive from there.
   file-type icons for everything else.
 - Open archives in the file list. Navigate with breadcrumbs and Back, open or download members, and copy files or folders between an archive, local storage and linked cloud accounts. Copy/Cut/Paste and their keyboard shortcuts also work across folders.
 - ZIP, 7z and TAR (plain, gzip, bzip2 or xz) support creating folders, uploads, renaming, moving and deleting members. RAR and archives with encrypted entries are read-only. Deleting an archive member is permanent. Sharing and Linux permissions apply to the containing file.
-- Listings support up to 3,000 entries. Edits and member reads have a 1 GiB working-size limit, and cloud or nested containers are limited to 64 MiB. Up to four archive levels can be browsed. A move verifies each copy before removing its source. Directory transfers can complete partially and report an error, as with ordinary transfers.
+- Listings support up to 3,000 entries. Edits and member reads have a 1 GiB working-size limit, and cloud or nested containers are limited to 64 MiB. Up to four archive levels can be browsed. A move verifies each copy before removing its source. A transfer within one archive publishes all its member changes together. Transfers across containers can complete partially and report an error, as with ordinary transfers.
 - Upload, download, create, rename, copy, move, trash, restore and permanently
   delete files and folders, including mixed multi-selections with one
   confirmation and per-item error reporting.

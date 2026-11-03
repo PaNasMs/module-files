@@ -84,3 +84,36 @@ func TestRefuseTransferIntoOwnArchive(t *testing.T) {
 		t.Fatal("accepted moving archive into itself")
 	}
 }
+
+func TestFolderBatchPublishesOnlyAfterAllMembersSucceed(t *testing.T) {
+	file, root := zipFolder(t, map[string]string{"folder/one": "one", "folder/two": "two"})
+	before, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	s := &Store{}
+	defer s.Close()
+	_, err = s.Within(ctx, root+"/folder", root+"/moved", func() (any, error) {
+		if err := s.Mkdir(ctx, root+"/moved"); err != nil {
+			return nil, err
+		}
+		if err := s.Delete(ctx, root+"/folder/one", false); err != nil {
+			return nil, err
+		}
+		current, e := os.ReadFile(file)
+		if e != nil || !bytes.Equal(before, current) {
+			t.Fatal("partial folder edit became visible", e)
+		}
+		return nil, context.Canceled
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if _, err = s.Stat(ctx, root+"/folder/one"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.Stat(ctx, root+"/moved"); !os.IsNotExist(err) {
+		t.Fatal("cancelled edit visible", err)
+	}
+}

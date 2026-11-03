@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -61,6 +60,15 @@ func (a *folderArchive) read(ctx context.Context, name string, out io.Writer) er
 	if e.Directory || e.Link || e.Size == nil || *e.Size < 0 || *e.Size > editLimit {
 		return errors.New("This archive member cannot be read")
 	}
+	if e.Index == stagedIndex && a.pending != nil {
+		f, err := os.Open(filepath.Join(a.pending.tree, name))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(out, f)
+		return err
+	}
 	dir, err := os.MkdirTemp("", "panasms-member-")
 	if err != nil {
 		return err
@@ -69,7 +77,10 @@ func (a *folderArchive) read(ctx context.Context, name string, out io.Writer) er
 	ext := suffix(a.source)
 	alias := filepath.Join(dir, "source"+ext)
 	fd := a.file
-	if codec := tarCodec(ext); codec != "" {
+	if a.tarPath != "" {
+		alias = a.tarPath
+		fd = nil
+	} else if codec := tarCodec(ext); codec != "" {
 		alias = filepath.Join(dir, "source.tar")
 		info, e := fd.Stat()
 		if e != nil {
@@ -92,8 +103,8 @@ func (a *folderArchive) read(ctx context.Context, name string, out io.Writer) er
 	}
 	return nil
 }
-func copyToFile(p string, in io.Reader, limit int64) (int64, error) {
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+func copyToFile(p string, in io.Reader, limit int64, mode os.FileMode) (int64, error) {
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err != nil {
 		return 0, err
 	}
@@ -130,58 +141,36 @@ func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, size i
 	if err != nil {
 		return err
 	}
-	existing, exists := a.entries[name]
-	if op == "delete" && !exists {
-		return os.ErrNotExist
+	stage := func() error { return a.pending.stage(a, name, op, in, size, expected) }
+	if a.pending != nil {
+		return stage()
 	}
-	if op != "delete" && exists {
-		entry, _ := a.entry(value, name)
-		if op == "mkdir" || existing.Directory || existing.Link || expected == "" || entry.Revision != expected {
-			return errors.New("destination already exists or changed")
-		}
-	} else if expected != "" {
-		return errors.New("destination changed; choose what to do again")
-	}
-	if size < 0 || size > editLimit {
-		return errLimit
-	}
-	parent := path.Dir(name)
-	if parent == "." {
-		parent = ""
-	}
-	if p, ok := a.entries[parent]; !ok || !p.Directory {
-		return os.ErrNotExist
-	}
-	dir, err := os.MkdirTemp("", "panasms-edit-")
+	return s.batch(ctx, a, stage)
+}
+func (s *Store) commit(ctx context.Context, a *folderArchive, b *batch) error {
+	removed, added, err := b.changes(a)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
-	tree := filepath.Join(dir, "files")
-	if err = os.Mkdir(tree, 0700); err != nil {
-		return err
-	}
-	staged := filepath.Join(tree, name)
-	if err = os.MkdirAll(filepath.Dir(staged), 0700); err != nil {
-		return err
-	}
-	var wantHash string
-	switch op {
-	case "put":
-		hash := sha256.New()
-		n, e := copyToFile(staged, io.TeeReader(in, hash), size)
-		if e != nil {
-			return e
+	for _, name := range added {
+		entry := a.entries[name]
+		staged := filepath.Join(b.tree, name)
+		if entry.Modified != 0 {
+			stamp := time.Unix(int64(entry.Modified), 0)
+			if err = os.Chtimes(staged, stamp, stamp); err != nil {
+				return err
+			}
 		}
-		if n != size {
-			return io.ErrUnexpectedEOF
-		}
-		wantHash = fmt.Sprintf("%x", hash.Sum(nil))
-	case "mkdir":
-		if err = os.Mkdir(staged, 0755); err != nil {
-			return err
+		if entry.Mode != nil {
+			if err = os.Chmod(staged, os.FileMode(*entry.Mode&0777)); err != nil {
+				return err
+			}
 		}
 	}
+	if len(removed) == 0 && len(added) == 0 {
+		return nil
+	}
+	dir, tree := b.dir, b.tree
 	ext := suffix(a.source)
 	kind := strings.TrimPrefix(ext, ".")
 	archive := filepath.Join(dir, "work"+ext)
@@ -190,53 +179,41 @@ func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, size i
 		kind = "tar"
 		archive = filepath.Join(dir, "work.tar")
 	}
-	if _, err = a.file.Seek(0, 0); err != nil {
-		return err
-	}
 	if codec == "" {
-		_, err = copyToFile(archive, a.file, editLimit)
+		_, err = copyToFile(archive, io.NewSectionReader(a.file, 0, editLimit+1), editLimit, 0600)
 	} else {
-		err = filter(ctx, dir, archive, a.file, codec, "-dc")
+		err = os.Rename(a.tarPath, archive)
 	}
 	if err != nil {
 		return err
 	}
-	command := func(action, member string) error {
+	command := func(action string, members []string) error {
+		if len(members) == 0 {
+			return nil
+		}
+		var args []string
 		if kind == "tar" {
-			args := []string{"/usr/bin/tar", "--file", archive, "--no-recursion", "--no-wildcards"}
-			if action == "a" {
-				args = append(args, "--append", "--", member)
-			} else {
-				args = append(args, "--delete", "--")
-				for key, row := range a.entries {
-					if row.Index >= 0 && (key == member || strings.HasPrefix(key, member+"/")) {
-						args = append(args, row.Name)
-					}
-				}
+			verb := "--append"
+			if action == "d" {
+				verb = "--delete"
 			}
-			return run(ctx, tree, nil, nil, io.Discard, args...)
+			args = []string{"/usr/bin/tar", "--file", archive, "--no-recursion", "--no-wildcards", verb, "--"}
+		} else {
+			binary := "/usr/bin/7z"
+			if _, e := os.Stat(binary); os.IsNotExist(e) {
+				binary = "/usr/bin/7zz"
+			}
+			args = []string{binary, action, "-t" + kind, "-mmt=1", "-mx=3", "-spd", "-ssc", "-y", "--", archive}
 		}
-		binary := "/usr/bin/7z"
-		if _, err := os.Stat(binary); os.IsNotExist(err) {
-			binary = "/usr/bin/7zz"
-		}
-		return run(ctx, tree, nil, nil, io.Discard, binary, action, "-t"+kind, "-mmt=1", "-mx=3", "-spd", "-ssc", "-y", "--", archive, member)
+		return run(ctx, tree, nil, nil, io.Discard, append(args, members...)...)
 	}
-	if exists {
-		if err = command("d", name); err != nil {
-			return err
-		}
+	if err = command("d", removed); err != nil {
+		return err
 	}
-	if op != "delete" {
-		if err = command("a", name); err != nil {
-			return err
-		}
-	} else if parent != "" && a.entries[parent].Index < 0 {
-		// Keep an implicit parent when its last member is removed.
-		if err = command("a", parent); err != nil {
-			return err
-		}
+	if err = command("a", added); err != nil {
+		return err
 	}
+	plain := archive
 	if codec != "" {
 		f, e := os.Open(archive)
 		if e != nil {
@@ -257,27 +234,19 @@ func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, size i
 	if err = next.index(ctx); err != nil {
 		return err
 	}
+	if codec != "" {
+		next.tarPath = plain
+	}
+	if len(next.entries) != len(a.entries) {
+		return errors.New("Archive update could not be verified")
+	}
 	for key, row := range a.entries {
-		if key == name || op == "delete" && strings.HasPrefix(key, name+"/") {
-			continue
-		}
 		other, ok := next.entries[key]
 		if !ok || other.Directory != row.Directory || other.Link != row.Link || !row.Directory && !sameSize(other.Size, row.Size) {
 			return errors.New("Archive update could not be verified")
 		}
 	}
-	for key := range next.entries {
-		if op == "delete" && (key == name || strings.HasPrefix(key, name+"/")) {
-			return errors.New("Archive update could not be verified")
-		}
-		if _, had := a.entries[key]; !had && key != name {
-			return errors.New("Archive update could not be verified")
-		}
-	}
-	if op == "mkdir" && !next.entries[name].Directory {
-		return errors.New("Archive update could not be verified")
-	}
-	if op == "put" {
+	for name, wantHash := range b.hashes {
 		h := sha256.New()
 		if err = next.read(ctx, name, h); err != nil {
 			return err
@@ -312,22 +281,26 @@ func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, size i
 	if err != nil {
 		return err
 	}
+	// Publication already succeeded. Invalidate the old snapshot even if a
+	// concurrent replacement prevents us from confirming what is installed.
+	a.file.Close()
+	delete(s.opened, a.source)
 	updated, err := s.load(ctx, a.source)
 	if err != nil {
-		return err
+		return errAfterPublish
 	}
-	// Another writer may have replaced the container between publication and
-	// reopening it. Never adopt that writer's revision for subsequent deletes.
 	same, err := sameContents(f, updated.file)
 	if err != nil || !same {
 		updated.file.Close()
-		return errors.New("destination changed; original file preserved")
+		return errAfterPublish
 	}
 	updated.baseline = a.baseline
-	a.file.Close()
 	s.opened[a.source] = updated
 	return nil
 }
+
+var errAfterPublish = errors.New("Archive was updated but the result could not be confirmed. Refresh the folder.")
+
 func sameSize(a, b *int64) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
 func tarCodec(ext string) string {
 	return map[string]string{".tar.gz": "gzip", ".tar.bz2": "bzip2", ".tar.xz": "xz"}[ext]

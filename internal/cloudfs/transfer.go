@@ -73,14 +73,11 @@ func (t *Transfer) mkdir(ctx context.Context, value string) error {
 	}
 	return localfs.Mkdir(value)
 }
-func (t *Transfer) remove(ctx context.Context, value string, directory bool) error {
+func (t *Transfer) remove(ctx context.Context, value string, directory bool, revision string) error {
 	if IsRemote(value) {
 		return t.Cloud.Delete(ctx, value, directory)
 	}
-	if directory {
-		return os.Remove(value)
-	}
-	return localfs.Delete(ctx, value)
+	return localfs.RemoveTransferSource(value, directory, revision)
 }
 func (t *Transfer) copyStream(ctx context.Context, source, destination string, size int64, revision string) (string, error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -126,6 +123,11 @@ func (t *Transfer) Run(ctx context.Context, source, destination string, move boo
 		t.Progress(0)
 	}
 	return t.runTransfer(ctx, source, destination, move, policy, expected)
+}
+func (t *Transfer) copyAttributes(source, destination string) {
+	if archive, ok := t.Cloud.(interface{ CopyMemberAttributes(string, string) }); ok {
+		archive.CopyMemberAttributes(source, destination)
+	}
 }
 func (t *Transfer) runTransfer(ctx context.Context, source, destination string, move bool, policy localfs.Conflict, expected string) (localfs.Result, error) {
 	if !IsRemote(source) && !IsRemote(destination) {
@@ -214,6 +216,7 @@ func (t *Transfer) runTransfer(ctx context.Context, source, destination string, 
 		if err = t.mkdir(ctx, destination); err != nil {
 			return localfs.Result{}, err
 		}
+		t.copyAttributes(source, destination)
 		return t.merge(ctx, source, destination, move, policy)
 	}
 	actual := destination
@@ -261,12 +264,13 @@ func (t *Transfer) runTransfer(ctx context.Context, source, destination string, 
 			return localfs.Result{}, err
 		}
 	}
+	t.copyAttributes(source, destination)
 	if move {
 		current, err = t.Stat(ctx, source)
 		if err != nil || current.Revision != src.Revision {
 			return localfs.Result{}, errors.New("source changed; both copies preserved")
 		}
-		if err = t.remove(ctx, source, false); err != nil {
+		if err = t.remove(ctx, source, false, src.Revision); err != nil {
 			return localfs.Result{}, err
 		}
 	}
@@ -299,7 +303,7 @@ func (t *Transfer) merge(ctx context.Context, source, destination string, move b
 			return result, err
 		}
 		if len(remaining) == 0 {
-			if err = t.remove(ctx, source, true); err != nil {
+			if err = t.remove(ctx, source, true, ""); err != nil {
 				return result, err
 			}
 		}

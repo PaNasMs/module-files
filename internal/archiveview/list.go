@@ -18,6 +18,7 @@ var errUnreadable = errors.New("Archive directory is unreadable, encrypted or in
 var errLimit = errors.New("Archive exceeds the preview limits")
 
 type Entry struct {
+	Mode      *int    `json:"-"`
 	Name      string  `json:"name"`
 	Index     int     `json:"-"`
 	Link      bool    `json:"-"`
@@ -108,7 +109,7 @@ func List(ctx context.Context, file *os.File, name string) ([]Entry, error) {
 			Hardlink  int    `json:"XADIsHardLink"`
 			Encrypted int    `json:"XADIsEncrypted"`
 			Date      string `json:"XADLastModificationDate"`
-			Mode      int    `json:"XADPosixPermissions"`
+			Mode      *int   `json:"XADPosixPermissions"`
 			Name      string `json:"XADFileName"`
 			Directory int    `json:"XADIsDirectory"`
 			Size      *int64 `json:"XADFileSize"`
@@ -136,8 +137,11 @@ func List(ctx context.Context, file *os.File, name string) ([]Entry, error) {
 		if !date.IsZero() {
 			modified = float64(date.Unix())
 		}
-		kind := row.Mode & syscall.S_IFMT
-		entries = append(entries, Entry{Name: row.Name, Directory: row.Directory != 0, Size: row.Size, Index: row.Index, Link: row.Link != 0 || row.Hardlink != 0 || kind != 0 && kind != syscall.S_IFREG && kind != syscall.S_IFDIR, Modified: modified, Encrypted: row.Encrypted != 0})
+		kind := 0
+		if row.Mode != nil {
+			kind = *row.Mode & syscall.S_IFMT
+		}
+		entries = append(entries, Entry{Mode: row.Mode, Name: row.Name, Directory: row.Directory != 0, Size: row.Size, Index: row.Index, Link: row.Link != 0 || row.Hardlink != 0 || kind != 0 && kind != syscall.S_IFREG && kind != syscall.S_IFDIR, Modified: modified, Encrypted: row.Encrypted != 0})
 	}
 	return entries, nil
 }

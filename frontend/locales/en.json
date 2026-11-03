@@ -252,5 +252,6 @@
   "archive.changed": "Archive changed or cannot be safely replaced",
   "archive.copy": "Copy",
   "archive.cut": "Cut",
-  "archive.paste": "Paste"
+  "archive.paste": "Paste",
+  "archive.published": "Archive was updated but the result could not be confirmed. Refresh the folder."
 }

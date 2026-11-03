@@ -188,9 +188,16 @@ func operationMain() bool {
 			reply(map[string]any{"path": r.Target, "entries": entries, "readOnly": store.ReadOnly(ctx, r.Target)}, e)
 			return true
 		}
-		value, err = operations.Cloud(ctx, mode, r, store, engine, func(percent float64) {
-			_ = json.NewEncoder(os.Stderr).Encode(map[string]float64{"percent": percent})
-		})
+		operation := func() (any, error) {
+			return operations.Cloud(ctx, mode, r, store, engine, func(percent float64) {
+				_ = json.NewEncoder(os.Stderr).Encode(map[string]float64{"percent": percent})
+			})
+		}
+		if mode == "execute" && (r.Action == "file.copy" || r.Action == "file.move" || r.Action == "file.rename") {
+			value, err = store.Within(ctx, r.Params.Target, r.Params.Destination, operation)
+		} else {
+			value, err = operation()
+		}
 		reply(value, err)
 		return true
 	}

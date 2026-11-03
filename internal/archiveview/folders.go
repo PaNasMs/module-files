@@ -30,6 +30,8 @@ type Store struct {
 	opened map[string]*folderArchive
 }
 type folderArchive struct {
+	pending                    *batch
+	tarPath                    string
 	file                       *os.File
 	source, revision, baseline string
 	entries                    map[string]Entry
