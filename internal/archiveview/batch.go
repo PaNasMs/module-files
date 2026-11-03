@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/PaNasMs/module-files/internal/cloudfs"
+	"github.com/PaNasMs/module-files/internal/localfs"
 	"io"
 	"maps"
 	"os"
@@ -73,7 +74,8 @@ func (s *Store) batch(ctx context.Context, a *folderArchive, stage func() error)
 	return s.commit(ctx, a, b)
 }
 
-func (b *batch) stage(a *folderArchive, name, op string, in io.Reader, size int64, expected string) error {
+func (b *batch) stage(a *folderArchive, name, op string, in io.Reader, src localfs.Entry, expected string) error {
+	size := src.Size
 	existing, exists := a.entries[name]
 	if op == "delete" {
 		if !exists {
@@ -109,7 +111,10 @@ func (b *batch) stage(a *folderArchive, name, op string, in io.Reader, size int6
 	if err := os.MkdirAll(filepath.Dir(staged), 0777); err != nil {
 		return err
 	}
-	row := Entry{Mode: existing.Mode, Name: name, Index: stagedIndex, Directory: op == "mkdir"}
+	row := Entry{Mode: src.Mode, Modified: src.Modified, Name: name, Index: stagedIndex, Directory: op == "mkdir"}
+	if exists {
+		row.Mode = existing.Mode
+	}
 	if row.Directory {
 		if err := os.MkdirAll(staged, 0777); err != nil {
 			return err
@@ -158,31 +163,4 @@ func (b *batch) changes(a *folderArchive) (removed, added []string, err error) {
 		}
 	}
 	return removed, added, nil
-}
-
-// Apply archived permissions only after every child has been staged.
-func (s *Store) CopyMemberAttributes(source, destination string) {
-	if !cloudfs.IsArchive(source) || !cloudfs.IsArchive(destination) {
-		return
-	}
-	src, from, e := Parse(source)
-	if e != nil {
-		return
-	}
-	dst, to, e := Parse(destination)
-	if e != nil || src != dst {
-		return
-	}
-	a := s.opened[src]
-	if a == nil || a.pending == nil {
-		return
-	}
-	old, ok := a.entries[from]
-	row := a.entries[to]
-	if !ok || row.Index != stagedIndex {
-		return
-	}
-	row.Mode = old.Mode
-	row.Modified = old.Modified
-	a.entries[to] = row
 }

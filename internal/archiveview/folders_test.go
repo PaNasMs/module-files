@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/PaNasMs/module-files/internal/cloudfs"
+	"github.com/PaNasMs/module-files/internal/localfs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -148,5 +150,28 @@ func TestPrivateStagingRemovedAfterReadOnlyFolderCopy(t *testing.T) {
 	items, err := os.ReadDir(temp)
 	if err != nil || len(items) != 0 {
 		t.Fatalf("staging left behind: %v %v", items, err)
+	}
+}
+
+func TestCrossArchiveMoveKeepsExecutableMode(t *testing.T) {
+	_, src := zipFolder(t, nil)
+	_, dst := zipFolder(t, nil)
+	ctx := context.Background()
+	s := &Store{}
+	defer s.Close()
+	mode := 0751
+	if err := s.PutMember(ctx, src+"/tool", bytes.NewBufferString("run"), localfs.Entry{Size: 3, Mode: &mode}, ""); err != nil {
+		t.Fatal(err)
+	}
+	transfer := cloudfs.Transfer{Cloud: s, Local: &localfs.Engine{}}
+	if _, err := transfer.Run(ctx, src+"/tool", dst+"/tool", true, localfs.Ask, ""); err != nil {
+		t.Fatal(err)
+	}
+	member, err := s.Stat(ctx, dst+"/tool")
+	if err != nil || member.Mode == nil || *member.Mode&0777 != mode {
+		t.Fatalf("destination mode %v, err %v", member.Mode, err)
+	}
+	if _, err = s.Stat(ctx, src+"/tool"); !os.IsNotExist(err) {
+		t.Fatalf("source not removed: %v", err)
 	}
 }

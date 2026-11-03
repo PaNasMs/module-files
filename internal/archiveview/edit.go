@@ -120,21 +120,28 @@ func (s *Store) Upload(ctx context.Context, value string, in io.Reader, size int
 	if !cloudfs.IsArchive(value) {
 		return s.Client.Upload(ctx, value, in, size, expected)
 	}
-	return s.edit(ctx, value, "put", in, size, expected)
+	return s.PutMember(ctx, value, in, localfs.Entry{Size: size}, expected)
 }
 func (s *Store) Mkdir(ctx context.Context, value string) error {
 	if !cloudfs.IsArchive(value) {
 		return s.Client.Mkdir(ctx, value)
 	}
-	return s.edit(ctx, value, "mkdir", nil, 0, "")
+	return s.PutMember(ctx, value, nil, localfs.Entry{Directory: true}, "")
 }
 func (s *Store) Delete(ctx context.Context, value string, directory bool) error {
 	if !cloudfs.IsArchive(value) {
 		return s.Client.Delete(ctx, value, directory)
 	}
-	return s.edit(ctx, value, "delete", nil, 0, "")
+	return s.edit(ctx, value, "delete", nil, localfs.Entry{}, "")
 }
-func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, size int64, expected string) error {
+func (s *Store) PutMember(ctx context.Context, value string, in io.Reader, src localfs.Entry, expected string) error {
+	op := "put"
+	if src.Directory {
+		op = "mkdir"
+	}
+	return s.edit(ctx, value, op, in, src, expected)
+}
+func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, src localfs.Entry, expected string) error {
 	if err := s.Writable(ctx, value); err != nil {
 		return err
 	}
@@ -142,7 +149,7 @@ func (s *Store) edit(ctx context.Context, value, op string, in io.Reader, size i
 	if err != nil {
 		return err
 	}
-	stage := func() error { return a.pending.stage(a, name, op, in, size, expected) }
+	stage := func() error { return a.pending.stage(a, name, op, in, src, expected) }
 	if a.pending != nil {
 		return stage()
 	}
@@ -285,6 +292,10 @@ func (s *Store) commit(ctx context.Context, a *folderArchive, b *batch) error {
 		err = localfs.ReplaceArchive(ctx, a.source, a.revision, f)
 	}
 	if err != nil {
+		if errors.Is(err, localfs.ErrArchivePublished) {
+			a.file.Close()
+			delete(s.opened, a.source)
+		}
 		return err
 	}
 	// Publication already succeeded. Invalidate the old snapshot even if a
@@ -293,19 +304,17 @@ func (s *Store) commit(ctx context.Context, a *folderArchive, b *batch) error {
 	delete(s.opened, a.source)
 	updated, err := s.load(ctx, a.source)
 	if err != nil {
-		return errAfterPublish
+		return localfs.ErrArchivePublished
 	}
 	same, err := sameContents(f, updated.file)
 	if err != nil || !same {
 		updated.file.Close()
-		return errAfterPublish
+		return localfs.ErrArchivePublished
 	}
 	updated.baseline = a.baseline
 	s.opened[a.source] = updated
 	return nil
 }
-
-var errAfterPublish = errors.New("Archive was updated but the result could not be confirmed. Refresh the folder.")
 
 func sameSize(a, b *int64) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
 func tarCodec(ext string) string {

@@ -168,7 +168,7 @@ func (a *folderArchive) entry(value, name string) (localfs.Entry, error) {
 	} else if !row.Directory {
 		size = -1
 	}
-	return localfs.Entry{Path: value, Name: path.Base(name), Directory: row.Directory, Size: size, Link: row.Link, Modified: row.Modified, Revision: fmt.Sprintf("%x", sha256.Sum256([]byte(a.baseline+"\x00"+name)))}, nil
+	return localfs.Entry{Mode: row.Mode, Path: value, Name: path.Base(name), Directory: row.Directory, Size: size, Link: row.Link, Modified: row.Modified, Revision: fmt.Sprintf("%x", sha256.Sum256([]byte(a.baseline+"\x00"+name)))}, nil
 }
 func (s *Store) Stat(ctx context.Context, value string) (localfs.Entry, error) {
 	if !cloudfs.IsArchive(value) {

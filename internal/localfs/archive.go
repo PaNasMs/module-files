@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 )
 
+var ErrArchivePublished = errors.New("Archive was updated but the result could not be confirmed. Refresh the folder.")
+
 // Keep the archive's access controls when atomically exchanging its contents.
 func ReplaceArchive(ctx context.Context, path, expected string, data *os.File) error {
 	dst, err := resolve(path)
@@ -76,5 +78,9 @@ func ReplaceArchive(ctx context.Context, path, expected string, data *os.File) e
 	if err != nil {
 		return err
 	}
-	return dst.parent.Sync()
+	if err = dst.parent.Sync(); err != nil {
+		preserve = true
+		return ErrArchivePublished
+	}
+	return nil
 }

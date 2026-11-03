@@ -26,7 +26,7 @@ export async function resolveAddress(value: string, list: (folder: string) => Pr
   for (const name of parts.filter(Boolean)) {
     const next = folder.replace(/\/$/, "") + "/" + name;
     if (archiveName.test(name)) {
-      const entry = (await list(folder)).find(e => e.name === name);
+      const entry = (await list(folder).catch(() => [])).find(e => e.name === name);
       folder = entry && folderTarget(entry) || next;
     } else folder = next;
   }

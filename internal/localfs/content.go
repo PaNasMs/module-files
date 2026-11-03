@@ -15,6 +15,7 @@ import (
 )
 
 type Entry struct {
+	Mode      *int    `json:"-"`
 	Git       bool    `json:"git,omitempty"`
 	Name      string  `json:"name"`
 	Path      string  `json:"path"`
@@ -66,7 +67,8 @@ func List(path string) ([]Entry, uint64, error) {
 				child.Close()
 			}
 		}
-		entries = append(entries, Entry{Git: git, Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
+		mode := int(s.Mode & 0777)
+		entries = append(entries, Entry{Mode: &mode, Git: git, Name: name, Path: strings.TrimSuffix(path, "/") + "/" + name, Directory: isDir(s), Link: s.Mode&unix.S_IFMT == unix.S_IFLNK, Size: s.Size, Modified: float64(s.Mtim.Sec) + float64(s.Mtim.Nsec)/1e9, Revision: revision(s)})
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Directory != entries[j].Directory {
