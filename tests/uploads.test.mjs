@@ -5,7 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { QueryClient } from "@tanstack/react-query";
 
-function setup() {
+function setup(readFolder) {
   const requests = [],
     listeners = new Map(),
     notices = [];
@@ -52,9 +52,9 @@ function setup() {
   vm.runInNewContext(code, {
     module,
     exports: module.exports,
-    XMLHttpRequest: XHR, URLSearchParams, TextEncoder, setTimeout, clearTimeout,
+    XMLHttpRequest: XHR, AbortController, URLSearchParams, TextEncoder, setTimeout, clearTimeout,
     require: (name) =>
-      name === "./list-folder" ? { listFolder: (path) => managed("files", undefined, path) } : name === "@panasms/layout"
+      name === "./list-folder" ? { listFolder: readFolder ?? ((path) => managed("files", undefined, path)) } : name === "@panasms/layout"
         ? { newID: () => `upload-${++sequence}` }
         : name === "@panasms/operations" ? { managed } : { tr: (key) => key },
     window: {
@@ -269,4 +269,23 @@ test("restore returns items to their original folder, asks on a taken name and e
   assert.deepEqual([...s.tasks().at(-1).errors], ["c.txt: trash.originalMissing"]);
   assert.equal(s.calls.filter((call) => call.view === "run").length, before);
   s.q.clear();
+});
+
+test("cancel or session clear aborts an archive listing before upload begins", async () => {
+  for (const clear of [false, true]) {
+    let listingSignal;
+    const s = setup((path,signal) => {
+      if (path === "/next") return Promise.resolve({entries:[]});
+      listingSignal=signal;
+      return new Promise((_, reject)=>signal.addEventListener("abort",()=>reject(Error("cancelled")),{once:true}));
+    });
+    s.start(s.q,[{name:"one",size:1}],"archive fixture");
+    s.start(s.q,[{name:"next",size:1}],"/next");
+    await s.flush();
+    if (clear) s.q.clear(); else s.tasks()[0].cancel();
+    await s.flush();
+    assert.equal(listingSignal.aborted,true);
+    assert.equal(s.requests.length,clear ? 0 : 1);
+    if (!clear) { assert.equal(s.requests[0].file.name,"next"); s.requests[0].finish();await s.flush();s.q.clear(); }
+  }
 });
