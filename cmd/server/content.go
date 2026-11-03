@@ -109,8 +109,8 @@ func contentMain() bool {
 			} else {
 				err = fmt.Errorf("cloud file cannot be downloaded")
 			}
-		case "edit":
-			err = editContent(ctx, path, os.Args[5], os.Args[6], cloud)
+		case "edit", "edit-image":
+			err = editContent(ctx, mode, path, os.Args[5], os.Args[6], cloud)
 		case "upload":
 			var size int64
 			size, err = strconv.ParseInt(os.Args[5], 10, 64)
@@ -146,8 +146,8 @@ func contentMain() bool {
 				err = localfs.StreamFile(f, os.Stdout)
 			}
 		}
-	case "edit":
-		err = editContent(ctx, path, os.Args[5], os.Args[6], nil)
+	case "edit", "edit-image":
+		err = editContent(ctx, mode, path, os.Args[5], os.Args[6], nil)
 	case "upload":
 		var size int64
 		size, err = strconv.ParseInt(os.Args[5], 10, 64)
@@ -164,9 +164,13 @@ func contentMain() bool {
 	return true
 }
 
-func editContent(ctx context.Context, path, length, expected string, cloud *archiveview.Store) error {
+func editContent(ctx context.Context, mode, path, length, expected string, cloud *archiveview.Store) error {
 	size, err := strconv.ParseInt(length, 10, 64)
-	if err != nil || size < 0 || size > 4<<20 || expected == "" {
+	limit := int64(4 << 20)
+	if mode == "edit-image" {
+		limit = 48 << 20
+	}
+	if err != nil || size < 0 || size > limit || expected == "" {
 		return fmt.Errorf("invalid edit")
 	}
 	f, n, err := cloudfs.Spool(func(w io.Writer) error { _, e := io.Copy(w, os.Stdin); return e }, size)

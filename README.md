@@ -20,7 +20,7 @@ an administrator can also upload a signed `.panasms` archive from there.
 
 Installed member-accessible modules may register a `fileViewer` contribution with `accepts(name)` and a React `component`. Files supplies the entry, visible siblings in display order, a read-only flag, and open/close/saved callbacks. Archives keep folder precedence. The `file` query parameter restores a detail view on refresh. Without a matching handler the built-in preview remains available.
 
-GET the authenticated Files content endpoint with `target=viewer:<path>` to stream even cloud content through the NAS. PUT to the same target with the listed `replace_revision` to save up to 4 MiB of edited text. Local publication preserves permissions and refuses unsafe replacements; cloud saves require a provider precondition.
+GET the authenticated Files content endpoint with `target=viewer:<path>` to stream even cloud content through the NAS. PUT to the same target with the listed `replace_revision` to save up to 4 MiB of edited text. For an explicit gallery overwrite, PUT to `viewer-image:<path>` with the original revision; the image limit is 48 MiB. Local publication preserves permissions and refuses unsafe replacements; cloud saves require a provider precondition.
 
 ## Features
 

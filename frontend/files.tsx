@@ -308,7 +308,7 @@ export function FilesPage() {
   }
   type Contribution = { fileViewer?: {
     accepts: (name: string) => boolean;
-    component: import("react").ComponentType<{entry: Entry; siblings: Entry[]; readOnly: boolean; open: (e: Entry) => void; close: () => void; saved: () => void}>;
+    component: import("react").ComponentType<{entry: Entry; siblings: Entry[]; readOnly: boolean; open: (e: Entry) => void; close: () => void; saved: () => Promise<void>}>;
   }};
   const handlers = modules().flatMap(m => (m as Contribution).fileViewer ?? []);
   const viewed = entries.find(e => e.path === viewerFile && !e.directory && !e.link);
@@ -542,8 +542,8 @@ export function FilesPage() {
     return [root, ...parts.map((_, i) => root.replace(/\/$/, "") + "/" + parts.slice(0,i+1).join("/"))];
   }
   const crumbPaths = breadcrumbs(path);
-  if (viewerFile && viewed && Viewer) return <Viewer key={viewed.path} entry={viewed} siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)} open={open} close={() => setViewerFile("")} saved={() => { void q.invalidateQueries({queryKey: ["files", path]}); setViewerFile(""); }} />;
-  if (viewerFile) return <div className="panel" role="status">{tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
+  if (viewerFile && viewed && Viewer) return <Viewer key={viewed.path} entry={viewed} siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)} open={open} close={() => setViewerFile("")} saved={async () => { await q.invalidateQueries({queryKey: ["files", path]}); if (new URLSearchParams(window.location.search).get("file") === viewed.path) setViewerFile(""); }} />;
+  if (viewerFile) return <div className="panel" role="status">{data.error ? <Notice error>{data.error.message}</Notice> : tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
   return (
     <>
       {deleting && (
