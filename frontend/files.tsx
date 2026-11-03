@@ -22,7 +22,7 @@ import {
 import { modules, registerModule } from "@panasms/runtime";
 import { mdiPinOutline, mdiPinOffOutline, mdiUsbFlashDriveOutline, mdiGoogleDrive, mdiDropbox, mdiCloudPlusOutline, mdiMicroSd, mdiFolderOutline, mdiHomeOutline, mdiHarddisk, mdiFolderNetworkOutline, mdiTrashCanOutline, mdiArrowLeft, mdiArrowRight, mdiArrowUp, mdiRefresh, mdiViewGridOutline, mdiFormatListBulleted, mdiFolderPlusOutline, mdiUpload, mdiDownload, mdiEyeOutline, mdiPencilOutline, mdiContentCopy, mdiContentCut, mdiContentPaste, mdiRestore, mdiDeleteOutline, mdiShareVariantOutline, mdiClose, mdiEyeOffOutline, mdiChevronRight, mdiCheckboxMultipleMarkedOutline, mdiChevronDown, mdiFolderMoveOutline } from "@mdi/js";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managed, OperationButton } from "@panasms/operations";
 import { Button, Icon, Notice, bytes } from "@panasms/ui";
@@ -56,6 +56,38 @@ type Listing = {
   freeBytes?: number;
   readOnly?: boolean;
 };
+type ViewerProps = {
+  entry: Entry; siblings: Entry[]; readOnly: boolean;
+  open: (e: Entry) => void; close: () => void; saved: () => Promise<void>;
+};
+type Contribution = { fileViewer?: { accepts: (name: string) => boolean; component: ComponentType<ViewerProps> } };
+
+function ViewerSession({ viewer: Viewer, folder, ...props }: Omit<ViewerProps, "saved"> & { viewer: ComponentType<ViewerProps>; folder: string }) {
+  const q = useQueryClient();
+  const live = useRef(false);
+  const [refresh, setRefresh] = useState<string | null>(null);
+  useLayoutEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+
+  async function saved() {
+    const queryKey = ["files", folder];
+    if (live.current) setRefresh("");
+    // An earlier save may complete while another editor owns this folder. Only its target revision is stale.
+    q.setQueryData<Listing>(queryKey, listing => listing && ({
+      ...listing, entries: listing.entries.map(e => e.path === props.entry.path ? {...e, revision: undefined} : e),
+    }));
+    try {
+      await q.invalidateQueries({queryKey, exact: true}, {throwOnError: true});
+      if (live.current) props.close();
+    } catch (error) {
+      if (live.current) setRefresh((error as Error).message || tr("viewer.unavailable"));
+    }
+  }
+  if (refresh !== null) return <div className="panel" role="status">
+    {refresh ? <><Notice error>{refresh}</Notice><Button onClick={() => void saved()}>{tr("retry_9e506acb")}</Button></> : tr("loading_b6819e91")}
+    <Button onClick={props.close}>{tr("viewer.back")}</Button>
+  </div>;
+  return <Viewer {...props} saved={saved} />;
+}
 export function FilesPage() {
   const session = useQuery({
     queryKey: ["session"],
@@ -306,10 +338,6 @@ export function FilesPage() {
     else setSelection([e.path]);
     anchor.current = e.path;
   }
-  type Contribution = { fileViewer?: {
-    accepts: (name: string) => boolean;
-    component: import("react").ComponentType<{entry: Entry; siblings: Entry[]; readOnly: boolean; open: (e: Entry) => void; close: () => void; saved: () => Promise<void>}>;
-  }};
   const handlers = modules().flatMap(m => (m as Contribution).fileViewer ?? []);
   const viewed = entries.find(e => e.path === viewerFile && !e.directory && !e.link);
   const Viewer = viewed && handlers.find(h => h.accepts(viewed.name))?.component;
@@ -542,12 +570,9 @@ export function FilesPage() {
     return [root, ...parts.map((_, i) => root.replace(/\/$/, "") + "/" + parts.slice(0,i+1).join("/"))];
   }
   const crumbPaths = breadcrumbs(path);
-  if (viewerFile && viewed && Viewer) return <Viewer key={viewed.path} entry={viewed} siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)} open={open} close={() => setViewerFile("")} saved={async () => {
-    // Discard the old revision even if the listing cannot be read after publication.
-    try { await q.resetQueries({queryKey: ["files", path], exact: true}, {throwOnError: true}); }
-    catch { return; }
-    if (new URLSearchParams(window.location.search).get("file") === viewed.path) setViewerFile("");
-  }} />;
+  if (viewerFile && viewed && Viewer) return <ViewerSession key={viewed.path} viewer={Viewer} folder={path} entry={viewed}
+    siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)}
+    open={open} close={() => setViewerFile("")} />;
   if (viewerFile) return <div className="panel" role="status">{data.error ? <Notice error>{data.error.message} <Button onClick={() => void data.refetch()}>{tr("retry_9e506acb")}</Button></Notice> : tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
   return (
     <>
