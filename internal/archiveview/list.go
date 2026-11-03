@@ -58,7 +58,7 @@ func List(ctx context.Context, file *os.File, name string) ([]Entry, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	args := []string{"--as=402653184", "--cpu=10", "--core=0", "--fsize=0", "--", "/usr/bin/lsar", "-j", "-jss"}
+	args := []string{"--as=402653184", "--cpu=10", "--core=0", "--fsize=0", "--", "/usr/bin/lsar", "-j"}
 	if !strings.HasPrefix(ext, ".tar.") {
 		args = append(args, "-nr")
 	}
