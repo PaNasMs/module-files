@@ -164,6 +164,7 @@ export function FilesPage() {
   const uploadInput = useRef<HTMLInputElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
   const addressRequest = useRef<AbortController | null>(null);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
   const anchor = useRef<string | null>(null);
   const deviceView = path.startsWith("device:");
   const archive = archiveSource(path);
@@ -258,7 +259,7 @@ export function FilesPage() {
     if (single) void enterVolume(single);
     else navigate("device:" + device.path);
   }
-  useLayoutEffect(() => () => addressRequest.current?.abort(), [path, viewerFile, editing]);
+  useLayoutEffect(() => () => addressRequest.current?.abort(), [path, viewerFile, preview, editing]);
   function navigate(next: string) {
     addressRequest.current?.abort();
     if (path !== next || viewerFile) {
@@ -733,6 +734,7 @@ export function FilesPage() {
           }
           if ((e.ctrlKey || e.metaKey) && e.key === "l") {
             e.preventDefault();
+            addressRequest.current?.abort();
             setAddress(displayPath(path));
             setEditing(true);
           }
@@ -869,13 +871,16 @@ export function FilesPage() {
                   addressRequest.current?.abort();
                   const request = new AbortController();
                   addressRequest.current = request;
+                  setResolvingAddress(true);
+                  request.signal.addEventListener("abort", () => setResolvingAddress(false), { once: true });
                   void resolveAddress(address.trim().replace(/\/+$/, "") || "/",
                     async folder => {
                       request.signal.throwIfAborted();
                       return (await listFolder<Listing>(folder, request.signal)).entries;
                     })
                     .then(folder => { if (!request.signal.aborted) navigate(folder); })
-                    .catch(e => { if (!request.signal.aborted) setError((e as Error).message); });
+                    .catch(e => { if (!request.signal.aborted) setError((e as Error).message); })
+                    .finally(() => { if (addressRequest.current === request) { addressRequest.current = null; setResolvingAddress(false); } });
                 }}
               >
                 <input
@@ -884,6 +889,7 @@ export function FilesPage() {
                   value={address}
                   onChange={(e) => { addressRequest.current?.abort(); setAddress(e.target.value); }}
                 />
+                {resolvingAddress && <span role="status">{tr("loading_b6819e91")}</span>}
               </form>
             ) : (
               <nav
@@ -1610,6 +1616,7 @@ function FolderTree({
     queryKey: ["files", folder],
     queryFn: ({ signal }) => listFolder<Listing>(folder, signal),
     enabled: expanded,
+    subscribed: expanded,
     refetchInterval: expanded && !folder.startsWith("arc:") && !folder.startsWith("cloud:") ? 10000 : false,
   });
   const children = (listing.data?.entries ?? [])
@@ -1637,7 +1644,7 @@ function FolderTree({
           className="file-tree-link"
           title={folder}
           aria-current={current === folder ? "page" : undefined}
-          disabled={busy || (writableOnly && (rarFolder(folder) || listing.data?.readOnly))}
+          disabled={busy || (writableOnly && (rarFolder(folder) || (folder.startsWith("arc:") && !listing.isSuccess) || listing.data?.readOnly))}
           onClick={() => void activate(false)}
         >
           <Icon path={icon} />
