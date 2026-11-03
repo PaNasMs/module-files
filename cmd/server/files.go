@@ -126,7 +126,11 @@ func filesHandler(allowed map[string]bool) http.HandlerFunc {
 			cmd.Stderr = os.Stderr
 			if e = cmd.Run(); e != nil {
 				log.Printf("upload failed user=%s expected=%d: %v", id.Username, r.ContentLength, e)
-				http.Error(w, "upload failed or file already exists", 409)
+				if mode == "upload" {
+					http.Error(w, "upload failed or file already exists", http.StatusConflict)
+				} else {
+					http.Error(w, "Save not confirmed. Check the file before retrying.", http.StatusConflict)
+				}
 				return
 			}
 			w.WriteHeader(204)

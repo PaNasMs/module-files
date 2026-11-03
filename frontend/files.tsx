@@ -542,8 +542,13 @@ export function FilesPage() {
     return [root, ...parts.map((_, i) => root.replace(/\/$/, "") + "/" + parts.slice(0,i+1).join("/"))];
   }
   const crumbPaths = breadcrumbs(path);
-  if (viewerFile && viewed && Viewer) return <Viewer key={viewed.path} entry={viewed} siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)} open={open} close={() => setViewerFile("")} saved={async () => { await q.invalidateQueries({queryKey: ["files", path]}); if (new URLSearchParams(window.location.search).get("file") === viewed.path) setViewerFile(""); }} />;
-  if (viewerFile) return <div className="panel" role="status">{data.error ? <Notice error>{data.error.message}</Notice> : tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
+  if (viewerFile && viewed && Viewer) return <Viewer key={viewed.path} entry={viewed} siblings={entries.filter(e => !e.directory && !e.link)} readOnly={readOnly || inTrash || rarFolder(path)} open={open} close={() => setViewerFile("")} saved={async () => {
+    // Discard the old revision even if the listing cannot be read after publication.
+    try { await q.resetQueries({queryKey: ["files", path], exact: true}, {throwOnError: true}); }
+    catch { return; }
+    if (new URLSearchParams(window.location.search).get("file") === viewed.path) setViewerFile("");
+  }} />;
+  if (viewerFile) return <div className="panel" role="status">{data.error ? <Notice error>{data.error.message} <Button onClick={() => void data.refetch()}>{tr("retry_9e506acb")}</Button></Notice> : tr(data.isPending ? "loading_b6819e91" : "viewer.unavailable")} <Button onClick={() => setViewerFile("")}>{tr("viewer.back")}</Button></div>;
   return (
     <>
       {deleting && (
