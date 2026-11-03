@@ -236,5 +236,11 @@
   "git.server4": "Repositories with custom Git filters require the terminal",
   "git.server5": "Repository has no commits yet",
   "git.server6": "Could not switch branch; local files were not forcibly overwritten",
-  "git.server7": "Choose an existing branch"
+  "git.server7": "Choose an existing branch",
+  "archive.contents": "Archive contents",
+  "archive.empty": "This folder is empty.",
+  "archive.more": "Show more",
+  "archive.unreadable": "Archive directory is unreadable, encrypted or incomplete",
+  "archive.limit": "Archive exceeds the preview limits",
+  "archive.cloudLimit": "Cloud archive exceeds the 64 MiB preview limit"
 }

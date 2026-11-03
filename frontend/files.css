@@ -34,3 +34,10 @@
 .file-git-status { font-size:0.75rem; color:var(--mute); white-space:nowrap; }
 .file-git-status.git-conflict { color:var(--danger); }
 .file-git-deleted { margin:0; padding:6px 12px; overflow-wrap:anywhere; }
+
+.archive-preview { overflow-wrap: anywhere; }
+.archive-preview ul { list-style: none; padding: 0; }
+.archive-preview li { display: flex; align-items: center; gap: .5rem; padding-block: .25rem; }
+.archive-preview li > svg { flex-shrink: 0; }
+.archive-preview li button { max-width: 100%; white-space: normal; text-align: start; }
+.archive-preview li small { margin-inline-start: auto; white-space: nowrap; }

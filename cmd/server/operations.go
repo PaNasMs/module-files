@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/PaNasMs/module-files/internal/archiveview"
 	"github.com/PaNasMs/module-files/internal/cloudfs"
 	"github.com/PaNasMs/module-files/internal/localfs"
 	"github.com/PaNasMs/module-files/internal/operations"
@@ -126,6 +127,36 @@ func operationMain() bool {
 		}
 	}}
 	var value any
+	if mode == "query" && strings.HasPrefix(r.Target, "archive:") {
+		path := strings.TrimPrefix(r.Target, "archive:")
+		ctx, stop := context.WithTimeout(ctx, 30*time.Second)
+		defer stop()
+		var file *os.File
+		if cloudfs.IsCloud(path) {
+			const limit = 64 << 20
+			cloud := &cloudfs.Client{Broker: cloudBroker()}
+			item, e := cloud.Stat(ctx, path)
+			if e != nil {
+				reply(nil, e)
+				return true
+			}
+			if item.Directory || item.Size < 0 || item.Size > limit {
+				reply(nil, errors.New("Cloud archive exceeds the 64 MiB preview limit"))
+				return true
+			}
+			file, _, err = cloudfs.Spool(func(w io.Writer) error { return cloud.Read(ctx, path, w) }, limit)
+		} else {
+			file, err = localfs.Open(path)
+		}
+		if err == nil {
+			defer file.Close()
+			var entries []archiveview.Entry
+			entries, err = archiveview.List(ctx, file, path)
+			value = map[string]any{"entries": entries}
+		}
+		reply(value, err)
+		return true
+	}
 	if cloudfs.IsCloud(r.Target) || cloudfs.IsCloud(r.Params.Target) || cloudfs.IsCloud(r.Params.Destination) {
 		engine.Check = nil
 		engine.Capability(true)
